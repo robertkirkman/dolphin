@@ -28,6 +28,10 @@ enum class AspectMode : int
   Auto,
   AnalogWide,
   Analog,
+  HorizontalSplitscreen,
+  HorizontalSplitscreenWide,
+  VerticalSplitscreen,
+  VerticalSplitscreenWide,
   Stretch,
 };
 

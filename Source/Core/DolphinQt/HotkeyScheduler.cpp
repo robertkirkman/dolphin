@@ -403,6 +403,18 @@ void HotkeyScheduler::Run()
         case AspectMode::AnalogWide:
           OSD::AddMessage("Force 16:9");
           break;
+        case AspectMode::HorizontalSplitscreen:
+          OSD::AddMessage("Force 2:3");
+          break;
+        case AspectMode::HorizontalSplitscreenWide:
+          OSD::AddMessage("Force 8:9");
+          break;
+        case AspectMode::VerticalSplitscreen:
+          OSD::AddMessage("Force 8:3");
+          break;
+        case AspectMode::VerticalSplitscreenWide:
+          OSD::AddMessage("Force 32:9");
+          break;
         case AspectMode::Auto:
         default:
           OSD::AddMessage("Auto");

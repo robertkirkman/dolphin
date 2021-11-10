@@ -56,7 +56,9 @@ void GeneralWidget::CreateWidgets()
 
   m_backend_combo = new ToolTipComboBox();
   m_aspect_combo =
-      new GraphicsChoice({tr("Auto"), tr("Force 16:9"), tr("Force 4:3"), tr("Stretch to Window")},
+      new GraphicsChoice({tr("Auto"), tr("Force 16:9"), tr("Force 4:3"),
+                         tr("Force 2:3"), tr("Force 8:9"), tr("Force 8:3"),
+                         tr("Force 32:9"), tr("Stretch to Window")},
                          Config::GFX_ASPECT_RATIO);
   m_adapter_combo = new ToolTipComboBox;
   m_enable_vsync = new GraphicsBool(tr("V-Sync"), Config::GFX_VSYNC);

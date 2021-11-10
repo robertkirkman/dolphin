@@ -87,9 +87,11 @@
 
 std::unique_ptr<Renderer> g_renderer;
 
-static float AspectToWidescreen(float aspect)
+// Static method to manipulate the aspect ratio from 4:3 to anything else
+// using a multiplier
+static float MultiplyAspect(float aspect, float multiplier)
 {
-  return aspect * ((16.0f / 9.0f) / (4.0f / 3.0f));
+  return aspect * multiplier;
 }
 
 static bool DumpFrameToPNG(const FrameDump::FrameData& frame, const std::string& file_name)
@@ -638,7 +640,26 @@ float Renderer::CalculateDrawAspectRatio() const
   if (aspect_mode == AspectMode::AnalogWide ||
       (aspect_mode == AspectMode::Auto && m_is_game_widescreen))
   {
-    return AspectToWidescreen(aspect_ratio);
+    return MultiplyAspect(aspect_ratio, (16.0f / 9.0f) / (4.0f / 3.0f));
+  }
+  // Special aspect ratios for patch-based splitscreen multiplayer mods
+  else
+  {
+    switch (aspect_mode)
+    {
+      case AspectMode::HorizontalSplitscreen:
+        return MultiplyAspect(aspect_ratio, (2.0f / 3.0f) / (4.0f / 3.0f));
+      case AspectMode::HorizontalSplitscreenWide:
+        return MultiplyAspect(aspect_ratio, (8.0f / 9.0f) / (4.0f / 3.0f));
+      case AspectMode::VerticalSplitscreen:
+        return MultiplyAspect(aspect_ratio, (8.0f / 3.0f) / (4.0f / 3.0f));
+      case AspectMode::VerticalSplitscreenWide:
+        return MultiplyAspect(aspect_ratio, (32.0f / 9.0f) / (4.0f / 3.0f));
+      case AspectMode::Analog:
+      case AspectMode::Auto:
+      default:
+        break;
+    }
   }
 
   return aspect_ratio;
@@ -802,7 +823,8 @@ void Renderer::UpdateDrawRectangle()
   {
     float source_aspect = VideoInterface::GetAspectRatio();
     if (m_is_game_widescreen)
-      source_aspect = AspectToWidescreen(source_aspect);
+      source_aspect = MultiplyAspect(source_aspect,
+                      (16.0f / 9.0f) / (4.0f / 3.0f));
 
     const float adjust = source_aspect / draw_aspect_ratio;
     if (adjust > 1)
@@ -889,12 +911,37 @@ std::tuple<float, float> Renderer::ApplyStandardAspectCrop(float width, float he
   if (!g_ActiveConfig.bCrop || aspect_mode == AspectMode::Stretch)
     return {width, height};
 
-  // Force 4:3 or 16:9 by cropping the image.
+  // Force selected aspect ratio by cropping the image.
   const float current_aspect = width / height;
-  const float expected_aspect = (aspect_mode == AspectMode::AnalogWide ||
-                                 (aspect_mode == AspectMode::Auto && m_is_game_widescreen)) ?
-                                    (16.0f / 9.0f) :
-                                    (4.0f / 3.0f);
+  float expected_aspect = 4.0f / 3.0f;
+  if (aspect_mode == AspectMode::AnalogWide ||
+     (aspect_mode == AspectMode::Auto && m_is_game_widescreen))
+  {
+    expected_aspect = 16.0f / 9.0f;
+  }
+  // Special aspect ratios for patch-based splitscreen multiplayer mods
+  else
+  {
+    switch (aspect_mode)
+    {
+    case AspectMode::HorizontalSplitscreen:
+      expected_aspect =  2.0f / 3.0f;
+      break;
+    case AspectMode::HorizontalSplitscreenWide:
+      expected_aspect =  8.0f / 9.0f;
+      break;
+    case AspectMode::VerticalSplitscreen:
+      expected_aspect =  8.0f / 3.0f;
+      break;
+    case AspectMode::VerticalSplitscreenWide:
+      expected_aspect =  32.0f / 9.0f;
+      break;
+    case AspectMode::Analog:
+    case AspectMode::Auto:
+      break;
+    }
+  }
+
   if (current_aspect > expected_aspect)
   {
     // keep height, crop width
@@ -1225,9 +1272,14 @@ void Renderer::UpdateWidescreenHeuristic()
   if (g_ActiveConfig.suggested_aspect_mode != AspectMode::Auto)
     return;
 
-  // If widescreen hack isn't active and aspect_mode (UI) is 4:3 or 16:9 don't use heuristic.
-  if (!g_ActiveConfig.bWidescreenHack && (g_ActiveConfig.aspect_mode == AspectMode::Analog ||
-                                          g_ActiveConfig.aspect_mode == AspectMode::AnalogWide))
+  // If widescreen hack isn't active and aspect_mode (UI) is set to force, don't use heuristic.
+  if (!g_ActiveConfig.bWidescreenHack &&
+     (g_ActiveConfig.aspect_mode == AspectMode::Analog ||
+      g_ActiveConfig.aspect_mode == AspectMode::AnalogWide ||
+      g_ActiveConfig.aspect_mode == AspectMode::HorizontalSplitscreen ||
+      g_ActiveConfig.aspect_mode == AspectMode::HorizontalSplitscreenWide ||
+      g_ActiveConfig.aspect_mode == AspectMode::VerticalSplitscreen ||
+      g_ActiveConfig.aspect_mode == AspectMode::VerticalSplitscreenWide))
     return;
 
   // Modify the threshold based on which aspect ratio we're already using:
@@ -1280,7 +1332,11 @@ void Renderer::Swap(u32 xfb_addr, u32 fb_width, u32 fb_stride, u32 fb_height, u6
   if (!g_ActiveConfig.bWidescreenHack)
   {
     const auto aspect_mode = g_ActiveConfig.aspect_mode;
-    if (aspect_mode == AspectMode::Analog)
+    if (aspect_mode == AspectMode::Analog ||
+        aspect_mode == AspectMode::HorizontalSplitscreen ||
+        aspect_mode == AspectMode::HorizontalSplitscreenWide ||
+        aspect_mode == AspectMode::VerticalSplitscreen ||
+        aspect_mode == AspectMode::VerticalSplitscreenWide)
       m_is_game_widescreen = false;
     else if (aspect_mode == AspectMode::AnalogWide)
       m_is_game_widescreen = true;
