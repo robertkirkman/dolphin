@@ -33,6 +33,7 @@
 #include "Core/HW/WII_IPC.h"
 #include "Core/PowerPC/JitCommon/JitBase.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 #include "VideoCommon/CommandProcessor.h"
 #include "VideoCommon/PixelEngine.h"
 
@@ -260,7 +261,7 @@ void Init()
                            false};
 
   const bool wii = SConfig::GetInstance().bWii;
-  const bool mmu = SConfig::GetInstance().bMMU;
+  const bool mmu = Core::System::GetInstance().IsMMUMode();
 
   bool fake_vmem = false;
 #ifndef _ARCH_32
@@ -314,7 +315,12 @@ void Init()
 
 bool InitFastmemArena()
 {
-  physical_base = Common::MemArena::FindMemoryBase();
+#if _ARCH_32
+  const size_t memory_size = 0x31000000;
+#else
+  const size_t memory_size = 0x400000000;
+#endif
+  physical_base = g_arena.ReserveMemoryRegion(memory_size);
 
   if (!physical_base)
   {
@@ -328,7 +334,7 @@ bool InitFastmemArena()
       continue;
 
     u8* base = physical_base + region.physical_address;
-    u8* view = (u8*)g_arena.CreateView(region.shm_position, region.size, base);
+    u8* view = (u8*)g_arena.MapInMemoryRegion(region.shm_position, region.size, base);
 
     if (base != view)
     {
@@ -354,7 +360,7 @@ void UpdateLogicalMemory(const PowerPC::BatTable& dbat_table)
 
   for (auto& entry : logical_mapped_entries)
   {
-    g_arena.ReleaseView(entry.mapped_pointer, entry.mapped_size);
+    g_arena.UnmapFromMemoryRegion(entry.mapped_pointer, entry.mapped_size);
   }
   logical_mapped_entries.clear();
   for (u32 i = 0; i < dbat_table.size(); ++i)
@@ -381,7 +387,7 @@ void UpdateLogicalMemory(const PowerPC::BatTable& dbat_table)
           u8* base = logical_base + logical_address + intersection_start - translated_address;
           u32 mapped_size = intersection_end - intersection_start;
 
-          void* mapped_pointer = g_arena.CreateView(position, mapped_size, base);
+          void* mapped_pointer = g_arena.MapInMemoryRegion(position, mapped_size, base);
           if (!mapped_pointer)
           {
             PanicAlertFmt("Memory::UpdateLogicalMemory(): Failed to map memory region at 0x{:08X} "
@@ -439,14 +445,16 @@ void ShutdownFastmemArena()
       continue;
 
     u8* base = physical_base + region.physical_address;
-    g_arena.ReleaseView(base, region.size);
+    g_arena.UnmapFromMemoryRegion(base, region.size);
   }
 
   for (auto& entry : logical_mapped_entries)
   {
-    g_arena.ReleaseView(entry.mapped_pointer, entry.mapped_size);
+    g_arena.UnmapFromMemoryRegion(entry.mapped_pointer, entry.mapped_size);
   }
   logical_mapped_entries.clear();
+
+  g_arena.ReleaseMemoryRegion();
 
   physical_base = nullptr;
   logical_base = nullptr;
