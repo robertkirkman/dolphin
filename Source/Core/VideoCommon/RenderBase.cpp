@@ -67,6 +67,7 @@
 #include "VideoCommon/FramebufferManager.h"
 #include "VideoCommon/FramebufferShaderGen.h"
 #include "VideoCommon/FreeLookCamera.h"
+#include "VideoCommon/GraphicsModSystem/Config/GraphicsModGroup.h"
 #include "VideoCommon/NetPlayChatUI.h"
 #include "VideoCommon/NetPlayGolfUI.h"
 #include "VideoCommon/OnScreenDisplay.h"
@@ -137,6 +138,22 @@ bool Renderer::Initialize()
     return false;
   }
 
+  if (g_ActiveConfig.bGraphicMods)
+  {
+    // If a config change occurred in a previous session,
+    // remember the old change count value.  By setting
+    // our current change count to the old value, we
+    // avoid loading the stale data when we
+    // check for config changes.
+    const u32 old_game_mod_changes = g_ActiveConfig.graphics_mod_config ?
+                                         g_ActiveConfig.graphics_mod_config->GetChangeCount() :
+                                         0;
+    g_ActiveConfig.graphics_mod_config = GraphicsModGroupConfig(SConfig::GetInstance().GetGameID());
+    g_ActiveConfig.graphics_mod_config->Load();
+    g_ActiveConfig.graphics_mod_config->SetChangeCount(old_game_mod_changes);
+    m_graphics_mod_manager.Load(*g_ActiveConfig.graphics_mod_config);
+  }
+
   return true;
 }
 
@@ -162,8 +179,7 @@ void Renderer::EndUtilityDrawing()
 {
   // Reset framebuffer/scissor/viewport. Pipeline will be reset at next draw.
   g_framebuffer_manager->BindEFBFramebuffer();
-  BPFunctions::SetScissor();
-  BPFunctions::SetViewport();
+  BPFunctions::SetScissorAndViewport();
 }
 
 void Renderer::SetFramebuffer(AbstractFramebuffer* framebuffer)
@@ -249,9 +265,6 @@ u32 Renderer::AccessEFB(EFBAccessType type, u32 x, u32 y, u32 poke_data)
     // a little-endian value is expected to be returned
     color = ((color & 0xFF00FF00) | ((color >> 16) & 0xFF) | ((color << 16) & 0xFF0000));
 
-    // check what to do with the alpha channel (GX_PokeAlphaRead)
-    PixelEngine::UPEAlphaReadReg alpha_read_mode = PixelEngine::GetAlphaReadMode();
-
     if (bpmem.zcontrol.pixel_format == PixelFormat::RGBA6_Z24)
     {
       color = RGBA8ToRGBA6ToRGBA8(color);
@@ -265,17 +278,24 @@ u32 Renderer::AccessEFB(EFBAccessType type, u32 x, u32 y, u32 poke_data)
       color |= 0xFF000000;
     }
 
-    if (alpha_read_mode.ReadMode == 2)
+    // check what to do with the alpha channel (GX_PokeAlphaRead)
+    PixelEngine::AlphaReadMode alpha_read_mode = PixelEngine::GetAlphaReadMode();
+
+    if (alpha_read_mode == PixelEngine::AlphaReadMode::ReadNone)
     {
-      return color;  // GX_READ_NONE
+      return color;
     }
-    else if (alpha_read_mode.ReadMode == 1)
+    else if (alpha_read_mode == PixelEngine::AlphaReadMode::ReadFF)
     {
-      return color | 0xFF000000;  // GX_READ_FF
+      return color | 0xFF000000;
     }
-    else /*if(alpha_read_mode.ReadMode == 0)*/
+    else
     {
-      return color & 0x00FFFFFF;  // GX_READ_00
+      if (alpha_read_mode != PixelEngine::AlphaReadMode::Read00)
+      {
+        PanicAlertFmt("Invalid PE alpha read mode: {}", static_cast<u16>(alpha_read_mode));
+      }
+      return color & 0x00FFFFFF;
     }
   }
   else  // if (type == EFBAccessType::PeekZ)
@@ -464,11 +484,26 @@ void Renderer::CheckForConfigChanges()
   const bool old_force_filtering = g_ActiveConfig.bForceFiltering;
   const bool old_vsync = g_ActiveConfig.bVSyncActive;
   const bool old_bbox = g_ActiveConfig.bBBoxEnable;
+  const u32 old_game_mod_changes =
+      g_ActiveConfig.graphics_mod_config ? g_ActiveConfig.graphics_mod_config->GetChangeCount() : 0;
+  const bool old_graphics_mods_enabled = g_ActiveConfig.bGraphicMods;
 
   UpdateActiveConfig();
   FreeLook::UpdateActiveConfig();
 
   g_freelook_camera.SetControlType(FreeLook::GetActiveConfig().camera_config.control_type);
+
+  if (g_ActiveConfig.bGraphicMods && !old_graphics_mods_enabled)
+  {
+    g_ActiveConfig.graphics_mod_config = GraphicsModGroupConfig(SConfig::GetInstance().GetGameID());
+    g_ActiveConfig.graphics_mod_config->Load();
+  }
+
+  if (g_ActiveConfig.graphics_mod_config &&
+      (old_game_mod_changes != g_ActiveConfig.graphics_mod_config->GetChangeCount()))
+  {
+    m_graphics_mod_manager.Load(*g_ActiveConfig.graphics_mod_config);
+  }
 
   // Update texture cache settings with any changed options.
   g_texture_cache->OnConfigChanged(g_ActiveConfig);
@@ -541,8 +576,7 @@ void Renderer::CheckForConfigChanges()
   // Viewport and scissor rect have to be reset since they will be scaled differently.
   if (changed_bits & CONFIG_CHANGE_BIT_TARGET_SIZE)
   {
-    BPFunctions::SetViewport();
-    BPFunctions::SetScissor();
+    BPFunctions::SetScissorAndViewport();
   }
 
   // Stereo mode change requires recompiling our post processing pipeline and imgui pipelines for
@@ -626,6 +660,9 @@ void Renderer::DrawDebugText()
 
   if (g_ActiveConfig.bOverlayProjStats)
     g_stats.DisplayProj();
+
+  if (g_ActiveConfig.bOverlayScissorStats)
+    g_stats.DisplayScissor();
 
   const std::string profile_output = Common::Profiler::ToString();
   if (!profile_output.empty())
@@ -1018,6 +1055,11 @@ void Renderer::RecordVideoMemory()
 
 bool Renderer::InitializeImGui()
 {
+  if (!IMGUI_CHECKVERSION())
+  {
+    PanicAlertFmt("ImGui version check failed");
+    return false;
+  }
   if (!ImGui::CreateContext())
   {
     PanicAlertFmt("Creating ImGui context failed");
@@ -1354,6 +1396,11 @@ void Renderer::Swap(u32 xfb_addr, u32 fb_width, u32 fb_stride, u32 fb_height, u6
   // This is required even if frame dumping has stopped, since the frame dump is one frame
   // behind the renderer.
   FlushFrameDump();
+
+  if (g_ActiveConfig.bGraphicMods)
+  {
+    m_graphics_mod_manager.EndOfFrame();
+  }
 
   if (xfb_addr && fb_width && fb_stride && fb_height)
   {
@@ -1856,7 +1903,7 @@ void Renderer::DoState(PointerWrap& p)
 
   m_bounding_box->DoState(p);
 
-  if (p.GetMode() == PointerWrap::MODE_READ)
+  if (p.IsReadMode())
   {
     // Force the next xfb to be displayed.
     m_last_xfb_id = std::numeric_limits<u64>::max();
@@ -1875,4 +1922,9 @@ void Renderer::DoState(PointerWrap& p)
 std::unique_ptr<VideoCommon::AsyncShaderCompiler> Renderer::CreateAsyncShaderCompiler()
 {
   return std::make_unique<VideoCommon::AsyncShaderCompiler>();
+}
+
+const GraphicsModManager& Renderer::GetGraphicsModManager() const
+{
+  return m_graphics_mod_manager;
 }

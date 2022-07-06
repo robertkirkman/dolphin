@@ -56,7 +56,7 @@ static void PushBack(std::vector<u8>* vector, const T& x)
   PushBack(vector, x_ptr, x_ptr + sizeof(T));
 }
 
-std::pair<int, int> GetAllowedCompressionLevels(WIARVZCompressionType compression_type)
+std::pair<int, int> GetAllowedCompressionLevels(WIARVZCompressionType compression_type, bool gui)
 {
   switch (compression_type)
   {
@@ -68,7 +68,10 @@ std::pair<int, int> GetAllowedCompressionLevels(WIARVZCompressionType compressio
     // The actual minimum level can be gotten by calling ZSTD_minCLevel(). However, returning that
     // would make the UI rather weird, because it is a negative number with very large magnitude.
     // Note: Level 0 is a special number which means "default level" (level 3 as of this writing).
-    return {1, ZSTD_maxCLevel()};
+    if (gui)
+      return {1, ZSTD_maxCLevel()};
+    else
+      return {ZSTD_minCLevel(), ZSTD_maxCLevel()};
   default:
     return {0, -1};
   }
@@ -87,7 +90,7 @@ WIARVZFileReader<RVZ>::~WIARVZFileReader() = default;
 template <bool RVZ>
 bool WIARVZFileReader<RVZ>::Initialize(const std::string& path)
 {
-  if (!m_file.Seek(0, SEEK_SET) || !m_file.ReadArray(&m_header_1, 1))
+  if (!m_file.Seek(0, File::SeekOrigin::Begin) || !m_file.ReadArray(&m_header_1, 1))
     return false;
 
   if ((!RVZ && m_header_1.magic != WIA_MAGIC) || (RVZ && m_header_1.magic != RVZ_MAGIC))
@@ -160,7 +163,7 @@ bool WIARVZFileReader<RVZ>::Initialize(const std::string& path)
   const size_t number_of_partition_entries = Common::swap32(m_header_2.number_of_partition_entries);
   const size_t partition_entry_size = Common::swap32(m_header_2.partition_entry_size);
   std::vector<u8> partition_entries(partition_entry_size * number_of_partition_entries);
-  if (!m_file.Seek(Common::swap64(m_header_2.partition_entries_offset), SEEK_SET))
+  if (!m_file.Seek(Common::swap64(m_header_2.partition_entries_offset), File::SeekOrigin::Begin))
     return false;
   if (!m_file.ReadBytes(partition_entries.data(), partition_entries.size()))
     return false;
@@ -686,7 +689,7 @@ bool WIARVZFileReader<RVZ>::Chunk::Read(u64 offset, u64 size, u8* out_ptr)
       return false;
     }
 
-    if (!m_file->Seek(m_offset_in_file, SEEK_SET))
+    if (!m_file->Seek(m_offset_in_file, File::SeekOrigin::Begin))
       return false;
     if (!m_file->ReadBytes(m_in.data.data() + m_in.bytes_written, bytes_to_read))
       return false;
@@ -1139,8 +1142,8 @@ static bool AllSame(const u8* begin, const u8* end)
 
 template <typename OutputParametersEntry>
 static void RVZPack(const u8* in, OutputParametersEntry* out, u64 bytes_per_chunk, size_t chunks,
-                    u64 total_size, u64 data_offset, u64 in_offset, bool multipart,
-                    bool allow_junk_reuse, bool compression, const FileSystem* file_system)
+                    u64 total_size, u64 data_offset, bool multipart, bool allow_junk_reuse,
+                    bool compression, const FileSystem* file_system)
 {
   using Seed = std::array<u32, LaggedFibonacciGenerator::SEED_SIZE>;
   struct JunkInfo
@@ -1159,7 +1162,7 @@ static void RVZPack(const u8* in, OutputParametersEntry* out, u64 bytes_per_chun
   {
     // Skip the 0 to 32 zero bytes that typically come after a file
     size_t zeroes = 0;
-    while (position + zeroes < total_size && in[in_offset + position + zeroes] == 0)
+    while (position + zeroes < total_size && in[position + zeroes] == 0)
       ++zeroes;
 
     // If there are very many zero bytes (perhaps the PRNG junk data has been scrubbed?)
@@ -1179,7 +1182,7 @@ static void RVZPack(const u8* in, OutputParametersEntry* out, u64 bytes_per_chun
 
     Seed seed;
     const size_t bytes_reconstructed = LaggedFibonacciGenerator::GetSeed(
-        in + in_offset + position, bytes_to_read, data_offset_mod, seed.data());
+        in + position, bytes_to_read, data_offset_mod, seed.data());
 
     if (bytes_reconstructed > 0)
       junk_info.emplace(position + bytes_reconstructed, JunkInfo{position, seed});
@@ -1245,7 +1248,7 @@ static void RVZPack(const u8* in, OutputParametersEntry* out, u64 bytes_per_chun
         if (next_junk_start == end_offset)
         {
           // Storing this chunk without RVZ packing would be inefficient, so store it without
-          PushBack(&entry.main_data, in + in_offset + current_offset, in + in_offset + end_offset);
+          PushBack(&entry.main_data, in + current_offset, in + end_offset);
           break;
         }
 
@@ -1255,7 +1258,7 @@ static void RVZPack(const u8* in, OutputParametersEntry* out, u64 bytes_per_chun
       const u64 non_junk_bytes = next_junk_start - current_offset;
       if (non_junk_bytes > 0)
       {
-        const u8* ptr = in + in_offset + current_offset;
+        const u8* ptr = in + current_offset;
 
         PushBack(&entry.main_data, Common::swap32(static_cast<u32>(non_junk_bytes)));
         PushBack(&entry.main_data, ptr, ptr + non_junk_bytes);
@@ -1281,8 +1284,7 @@ template <typename OutputParametersEntry>
 static void RVZPack(const u8* in, OutputParametersEntry* out, u64 size, u64 data_offset,
                     bool allow_junk_reuse, bool compression, const FileSystem* file_system)
 {
-  RVZPack(in, out, size, 1, size, data_offset, 0, false, allow_junk_reuse, compression,
-          file_system);
+  RVZPack(in, out, size, 1, size, data_offset, false, allow_junk_reuse, compression, file_system);
 }
 
 template <bool RVZ>
@@ -1470,8 +1472,8 @@ WIARVZFileReader<RVZ>::ProcessAndCompress(CompressThreadState* state, CompressPa
           const u64 data_offset = parameters.data_offset + write_offset_of_group;
 
           RVZPack(state->decryption_buffer[0].data(), output_entries.data() + first_chunk,
-                  bytes_per_chunk, chunks, total_size, data_offset, write_offset_of_group,
-                  groups > 1, allow_junk_reuse, compression, file_system);
+                  bytes_per_chunk, chunks, total_size, data_offset, groups > 1, allow_junk_reuse,
+                  compression, file_system);
         }
         else
         {
@@ -1716,7 +1718,7 @@ bool WIARVZFileReader<RVZ>::WriteHeader(File::IOFile* file, const u8* data, size
   {
     WARN_LOG_FMT(DISCIO,
                  "Headers did not fit in the allocated space. Writing to end of file instead");
-    if (!file->Seek(0, SEEK_END))
+    if (!file->Seek(0, File::SeekOrigin::End))
       return false;
     *bytes_written = file->Tell();
   }
@@ -1949,7 +1951,7 @@ WIARVZFileReader<RVZ>::Convert(BlobReader* infile, const VolumeDisc* infile_volu
     return ConversionResultCode::InternalError;
 
   bytes_written = sizeof(WIAHeader1) + sizeof(WIAHeader2);
-  if (!outfile->Seek(sizeof(WIAHeader1) + sizeof(WIAHeader2), SEEK_SET))
+  if (!outfile->Seek(sizeof(WIAHeader1) + sizeof(WIAHeader2), File::SeekOrigin::Begin))
     return ConversionResultCode::WriteFailed;
 
   u64 partition_entries_offset;
@@ -1985,7 +1987,8 @@ WIARVZFileReader<RVZ>::Convert(BlobReader* infile, const VolumeDisc* infile_volu
 
   header_2.disc_type = Common::swap32(disc_type);
   header_2.compression_type = Common::swap32(static_cast<u32>(compression_type));
-  header_2.compression_level = Common::swap32(static_cast<u32>(compression_level));
+  header_2.compression_level =
+      static_cast<s32>(Common::swap32(static_cast<u32>(compression_level)));
   header_2.chunk_size = Common::swap32(static_cast<u32>(chunk_size));
 
   header_2.number_of_partition_entries = Common::swap32(static_cast<u32>(partition_entries.size()));
@@ -2018,7 +2021,7 @@ WIARVZFileReader<RVZ>::Convert(BlobReader* infile, const VolumeDisc* infile_volu
   mbedtls_sha1_ret(reinterpret_cast<const u8*>(&header_1), offsetof(WIAHeader1, header_1_hash),
                    header_1.header_1_hash.data());
 
-  if (!outfile->Seek(0, SEEK_SET))
+  if (!outfile->Seek(0, File::SeekOrigin::Begin))
     return ConversionResultCode::WriteFailed;
 
   if (!outfile->WriteArray(&header_1, 1))

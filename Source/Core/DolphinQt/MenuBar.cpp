@@ -165,6 +165,7 @@ void MenuBar::OnDebugModeToggled(bool enabled)
   // Options
   m_boot_to_pause->setVisible(enabled);
   m_automatic_start->setVisible(enabled);
+  m_reset_ignore_panic_handler->setVisible(enabled);
   m_change_font->setVisible(enabled);
 
   // View
@@ -217,7 +218,7 @@ void MenuBar::AddFileMenu()
   file_menu->addSeparator();
 
   m_exit_action = file_menu->addAction(tr("E&xit"), this, &MenuBar::Exit);
-  m_exit_action->setShortcuts({QKeySequence::Quit, QKeySequence(Qt::ALT + Qt::Key_F4)});
+  m_exit_action->setShortcuts({QKeySequence::Quit, QKeySequence(Qt::ALT | Qt::Key_F4)});
 }
 
 void MenuBar::AddToolsMenu()
@@ -543,13 +544,22 @@ void MenuBar::AddOptionsMenu()
   connect(m_automatic_start, &QAction::toggled, this,
           [](bool enable) { SConfig::GetInstance().bAutomaticStart = enable; });
 
+  m_reset_ignore_panic_handler = options_menu->addAction(tr("Reset Ignore Panic Handler"));
+
+  connect(m_reset_ignore_panic_handler, &QAction::triggered, this, []() {
+    if (Config::Get(Config::MAIN_USE_PANIC_HANDLERS))
+      Common::SetEnableAlert(true);
+  });
+
   m_change_font = options_menu->addAction(tr("&Font..."), this, &MenuBar::ChangeDebugFont);
 }
 
 void MenuBar::InstallUpdateManually()
 {
-  auto* updater =
-      new Updater(this->parentWidget(), "dev", Config::Get(Config::MAIN_AUTOUPDATE_HASH_OVERRIDE));
+  const std::string autoupdate_track = Config::Get(Config::MAIN_AUTOUPDATE_UPDATE_TRACK);
+  const std::string manual_track = autoupdate_track.empty() ? "dev" : autoupdate_track;
+  auto* const updater = new Updater(this->parentWidget(), manual_track,
+                                    Config::Get(Config::MAIN_AUTOUPDATE_HASH_OVERRIDE));
 
   if (!updater->CheckForUpdate())
   {
@@ -991,12 +1001,9 @@ void MenuBar::UpdateToolsMenu(bool emulation_started)
 {
   m_boot_sysmenu->setEnabled(!emulation_started);
   m_perform_online_update_menu->setEnabled(!emulation_started);
-  m_ntscj_ipl->setEnabled(!emulation_started &&
-                          File::Exists(SConfig::GetInstance().GetBootROMPath(JAP_DIR)));
-  m_ntscu_ipl->setEnabled(!emulation_started &&
-                          File::Exists(SConfig::GetInstance().GetBootROMPath(USA_DIR)));
-  m_pal_ipl->setEnabled(!emulation_started &&
-                        File::Exists(SConfig::GetInstance().GetBootROMPath(EUR_DIR)));
+  m_ntscj_ipl->setEnabled(!emulation_started && File::Exists(Config::GetBootROMPath(JAP_DIR)));
+  m_ntscu_ipl->setEnabled(!emulation_started && File::Exists(Config::GetBootROMPath(USA_DIR)));
+  m_pal_ipl->setEnabled(!emulation_started && File::Exists(Config::GetBootROMPath(EUR_DIR)));
   m_import_backup->setEnabled(!emulation_started);
   m_check_nand->setEnabled(!emulation_started);
 
@@ -1175,7 +1182,7 @@ void MenuBar::CheckNAND()
 
 void MenuBar::NANDExtractCertificates()
 {
-  if (DiscIO::NANDImporter().ExtractCertificates(File::GetUserPath(D_WIIROOT_IDX)))
+  if (DiscIO::NANDImporter().ExtractCertificates())
   {
     ModalMessageBox::information(this, tr("Success"),
                                  tr("Successfully extracted certificates from NAND"));

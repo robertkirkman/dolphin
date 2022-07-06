@@ -36,6 +36,7 @@
 #include "Core/Boot/Boot.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Config/SYSCONFSettings.h"
+#include "Core/Config/WiimoteSettings.h"
 #include "Core/ConfigLoaders/MovieConfigLoader.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
@@ -79,9 +80,16 @@ namespace Movie
 using namespace WiimoteCommon;
 using namespace WiimoteEmu;
 
+enum class PlayMode
+{
+  None = 0,
+  Recording,
+  Playing,
+};
+
 static bool s_bReadOnly = true;
 static u32 s_rerecords = 0;
-static PlayMode s_playMode = MODE_NONE;
+static PlayMode s_playMode = PlayMode::None;
 
 static std::array<ControllerType, 4> s_controllers{};
 static std::array<bool, 4> s_wiimotes{};
@@ -169,7 +177,7 @@ std::string GetInputDisplay()
         s_controllers[i] = ControllerType::GC;
       else
         s_controllers[i] = ControllerType::None;
-      s_wiimotes[i] = WiimoteCommon::GetSource(i) != WiimoteSource::None;
+      s_wiimotes[i] = Config::Get(Config::GetInfoForWiimoteSource(i)) != WiimoteSource::None;
     }
   }
 
@@ -308,7 +316,7 @@ void SetReadOnly(bool bEnabled)
 
 bool IsRecordingInput()
 {
-  return (s_playMode == MODE_RECORDING);
+  return (s_playMode == PlayMode::Recording);
 }
 
 bool IsRecordingInputFromSaveState()
@@ -328,12 +336,12 @@ bool IsJustStartingPlayingInputFromSaveState()
 
 bool IsPlayingInput()
 {
-  return (s_playMode == MODE_PLAYING);
+  return (s_playMode == PlayMode::Playing);
 }
 
 bool IsMovieActive()
 {
-  return s_playMode != MODE_NONE;
+  return s_playMode != PlayMode::None;
 }
 
 bool IsReadOnly()
@@ -506,7 +514,7 @@ void ChangeWiiPads(bool instantly)
 
   for (int i = 0; i < MAX_WIIMOTES; ++i)
   {
-    wiimotes[i] = WiimoteCommon::GetSource(i) != WiimoteSource::None;
+    wiimotes[i] = Config::Get(Config::GetInfoForWiimoteSource(i)) != WiimoteSource::None;
   }
 
   // This is important for Wiimotes, because they can desync easily if they get re-activated
@@ -518,7 +526,8 @@ void ChangeWiiPads(bool instantly)
   {
     const bool is_using_wiimote = IsUsingWiimote(i);
 
-    WiimoteCommon::SetSource(i, is_using_wiimote ? WiimoteSource::Emulated : WiimoteSource::None);
+    Config::SetCurrent(Config::GetInfoForWiimoteSource(i),
+                       is_using_wiimote ? WiimoteSource::Emulated : WiimoteSource::None);
     if (bt != nullptr)
       bt->AccessWiimoteByIndex(i)->Activate(is_using_wiimote);
   }
@@ -528,7 +537,7 @@ void ChangeWiiPads(bool instantly)
 bool BeginRecordingInput(const ControllerTypeArray& controllers,
                          const WiimoteEnabledArray& wiimotes)
 {
-  if (s_playMode != MODE_NONE ||
+  if (s_playMode != PlayMode::None ||
       (controllers == ControllerTypeArray{} && wiimotes == WiimoteEnabledArray{}))
     return false;
 
@@ -585,7 +594,7 @@ bool BeginRecordingInput(const ControllerTypeArray& controllers,
       Wiimote::ResetAllWiimotes();
     }
 
-    s_playMode = MODE_RECORDING;
+    s_playMode = PlayMode::Recording;
     s_author = Config::Get(Config::MAIN_MOVIE_MOVIE_AUTHOR);
     s_temp_input.clear();
 
@@ -937,7 +946,7 @@ void ReadHeader()
 // NOTE: Host Thread
 bool PlayInput(const std::string& movie_path, std::optional<std::string>* savestate_path)
 {
-  if (s_playMode != MODE_NONE)
+  if (s_playMode != PlayMode::None)
     return false;
 
   File::IOFile recording_file(movie_path, "rb");
@@ -959,7 +968,7 @@ bool PlayInput(const std::string& movie_path, std::optional<std::string>* savest
   s_currentLagCount = 0;
   s_currentInputCount = 0;
 
-  s_playMode = MODE_PLAYING;
+  s_playMode = PlayMode::Playing;
 
   // Wiimotes cause desync issues if they're not reset before launching the game
   Wiimote::ResetAllWiimotes();
@@ -976,7 +985,16 @@ bool PlayInput(const std::string& movie_path, std::optional<std::string>* savest
   {
     const std::string savestate_path_temp = movie_path + ".sav";
     if (File::Exists(savestate_path_temp))
+    {
       *savestate_path = savestate_path_temp;
+    }
+    else
+    {
+      PanicAlertFmtT("Movie {0} indicates that it starts from a savestate, but {1} doesn't exist. "
+                     "The movie will likely not sync!",
+                     movie_path, savestate_path_temp);
+    }
+
     s_bRecordingFromSaveState = true;
     Movie::LoadInput(movie_path);
   }
@@ -1021,7 +1039,7 @@ void LoadInput(const std::string& movie_path)
   {
     s_rerecords++;
     tmpHeader.numRerecords = s_rerecords;
-    t_record.Seek(0, SEEK_SET);
+    t_record.Seek(0, File::SeekOrigin::Begin);
     t_record.WriteArray(&tmpHeader, 1);
   }
 
@@ -1139,18 +1157,18 @@ void LoadInput(const std::string& movie_path)
   {
     if (s_bReadOnly)
     {
-      if (s_playMode != MODE_PLAYING)
+      if (s_playMode != PlayMode::Playing)
       {
-        s_playMode = MODE_PLAYING;
+        s_playMode = PlayMode::Playing;
         Core::UpdateWantDeterminism();
         Core::DisplayMessage("Switched to playback", 2000);
       }
     }
     else
     {
-      if (s_playMode != MODE_RECORDING)
+      if (s_playMode != PlayMode::Recording)
       {
-        s_playMode = MODE_RECORDING;
+        s_playMode = PlayMode::Recording;
         Core::UpdateWantDeterminism();
         Core::DisplayMessage("Switched to recording", 2000);
       }
@@ -1317,18 +1335,18 @@ void EndPlayInput(bool cont)
     // If !IsMovieActive(), changing s_playMode requires calling UpdateWantDeterminism
     ASSERT(IsMovieActive());
 
-    s_playMode = MODE_RECORDING;
+    s_playMode = PlayMode::Recording;
     Core::DisplayMessage("Reached movie end. Resuming recording.", 2000);
   }
-  else if (s_playMode != MODE_NONE)
+  else if (s_playMode != PlayMode::None)
   {
     // We can be called by EmuThread during boot (CPU::State::PowerDown)
     bool was_running = Core::IsRunningAndStarted() && !CPU::IsStepping();
-    if (was_running)
+    if (was_running && Config::Get(Config::MAIN_MOVIE_PAUSE_MOVIE))
       CPU::Break();
     s_rerecords = 0;
     s_currentByte = 0;
-    s_playMode = MODE_NONE;
+    s_playMode = PlayMode::None;
     Core::DisplayMessage("Movie End.", 2000);
     s_bRecordingFromSaveState = false;
     // we don't clear these things because otherwise we can't resume playback if we load a movie
@@ -1337,11 +1355,7 @@ void EndPlayInput(bool cont)
     // delete tmpInput;
     // tmpInput = nullptr;
 
-    Core::QueueHostJob([=] {
-      Core::UpdateWantDeterminism();
-      if (was_running && !Config::Get(Config::MAIN_MOVIE_PAUSE_MOVIE))
-        CPU::EnableStepping(false);
-    });
+    Core::QueueHostJob([=] { Core::UpdateWantDeterminism(); });
   }
 }
 
@@ -1465,6 +1479,9 @@ void GetSettings()
   }
   else
   {
+    const auto raw_memcard_exists = [](ExpansionInterface::Slot card_slot) {
+      return File::Exists(Config::GetMemcardPath(card_slot, SConfig::GetInstance().m_region));
+    };
     const auto gci_folder_has_saves = [](ExpansionInterface::Slot card_slot) {
       const auto [path, migrate] = ExpansionInterface::CEXIMemoryCard::GetGCIFolderPath(
           card_slot, ExpansionInterface::AllowMovieFolder::No);
@@ -1472,11 +1489,10 @@ void GetSettings()
       return number_of_saves > 0;
     };
 
-    s_bClearSave =
-        !(slot_a_has_raw_memcard && File::Exists(Config::Get(Config::MAIN_MEMCARD_A_PATH))) &&
-        !(slot_b_has_raw_memcard && File::Exists(Config::Get(Config::MAIN_MEMCARD_B_PATH))) &&
-        !(slot_a_has_gci_folder && gci_folder_has_saves(ExpansionInterface::Slot::A)) &&
-        !(slot_b_has_gci_folder && gci_folder_has_saves(ExpansionInterface::Slot::B));
+    s_bClearSave = !(slot_a_has_raw_memcard && raw_memcard_exists(ExpansionInterface::Slot::A)) &&
+                   !(slot_b_has_raw_memcard && raw_memcard_exists(ExpansionInterface::Slot::B)) &&
+                   !(slot_a_has_gci_folder && gci_folder_has_saves(ExpansionInterface::Slot::A)) &&
+                   !(slot_b_has_gci_folder && gci_folder_has_saves(ExpansionInterface::Slot::B));
   }
   s_memcards |= (slot_a_has_raw_memcard || slot_a_has_gci_folder) << 0;
   s_memcards |= (slot_b_has_raw_memcard || slot_b_has_gci_folder) << 1;

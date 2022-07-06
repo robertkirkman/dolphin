@@ -709,7 +709,7 @@ void JitArm64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
   {
     // Code generation failed due to not enough free space in either the near or far code regions.
     // Clear the entire JIT cache and retry.
-    WARN_LOG(POWERPC, "flushing code caches, please report if this happens a lot");
+    WARN_LOG_FMT(POWERPC, "flushing code caches, please report if this happens a lot");
     ClearCache();
     Jit(em_address, false);
     return;
@@ -728,7 +728,7 @@ bool JitArm64::SetEmitterStateToFreeCodeRegion()
   auto free_near = m_free_ranges_near.by_size_begin();
   if (free_near == m_free_ranges_near.by_size_end())
   {
-    WARN_LOG(POWERPC, "Failed to find free memory region in near code region.");
+    WARN_LOG_FMT(POWERPC, "Failed to find free memory region in near code region.");
     return false;
   }
   SetCodePtr(free_near.from(), free_near.to());
@@ -736,7 +736,7 @@ bool JitArm64::SetEmitterStateToFreeCodeRegion()
   auto free_far = m_free_ranges_far.by_size_begin();
   if (free_far == m_free_ranges_far.by_size_end())
   {
-    WARN_LOG(POWERPC, "Failed to find free memory region in far code region.");
+    WARN_LOG_FMT(POWERPC, "Failed to find free memory region in far code region.");
     return false;
   }
   m_far_code.SetCodePtr(free_far.from(), free_far.to());
@@ -835,7 +835,8 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     // Gather pipe writes using a non-immediate address are discovered by profiling.
     bool gatherPipeIntCheck = js.fifoWriteAddresses.find(op.address) != js.fifoWriteAddresses.end();
 
-    if (jo.optimizeGatherPipe && (js.fifoBytesSinceCheck >= 32 || js.mustCheckFifo))
+    if (jo.optimizeGatherPipe &&
+        (js.fifoBytesSinceCheck >= GPFifo::GATHER_PIPE_SIZE || js.mustCheckFifo))
     {
       js.fifoBytesSinceCheck = 0;
       js.mustCheckFifo = false;
@@ -970,8 +971,8 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
         gpr.DiscardRegisters(op.gprDiscardable);
         fpr.DiscardRegisters(op.fprDiscardable);
       }
-      gpr.StoreRegisters(~op.gprInUse);
-      fpr.StoreRegisters(~op.fprInUse);
+      gpr.StoreRegisters(~op.gprInUse & (op.regsIn | op.regsOut));
+      fpr.StoreRegisters(~op.fprInUse & (op.fregsIn | op.GetFregsOut()));
 
       if (opinfo->flags & FL_LOADSTORE)
         ++js.numLoadStoreInst;
@@ -994,9 +995,9 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   if (HasWriteFailed() || m_far_code.HasWriteFailed())
   {
     if (HasWriteFailed())
-      WARN_LOG(POWERPC, "JIT ran out of space in near code region during code generation.");
+      WARN_LOG_FMT(POWERPC, "JIT ran out of space in near code region during code generation.");
     if (m_far_code.HasWriteFailed())
-      WARN_LOG(POWERPC, "JIT ran out of space in far code region during code generation.");
+      WARN_LOG_FMT(POWERPC, "JIT ran out of space in far code region during code generation.");
 
     return false;
   }

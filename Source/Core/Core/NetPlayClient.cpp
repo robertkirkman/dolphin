@@ -37,6 +37,7 @@
 #include "Core/Config/MainSettings.h"
 #include "Core/Config/NetplaySettings.h"
 #include "Core/Config/SessionSettings.h"
+#include "Core/Config/WiimoteSettings.h"
 #include "Core/ConfigManager.h"
 #include "Core/GeckoCode.h"
 #include "Core/HW/EXI/EXI.h"
@@ -152,7 +153,7 @@ NetPlayClient::NetPlayClient(const std::string& address, const u16 port, NetPlay
     }
 
     // Extend reliable traffic timeout
-    enet_peer_timeout(m_server, 0, 30000, 30000);
+    enet_peer_timeout(m_server, 0, PEER_TIMEOUT, PEER_TIMEOUT);
 
     ENetEvent netEvent;
     int net = enet_host_service(m_client, &netEvent, 5000);
@@ -209,6 +210,10 @@ NetPlayClient::NetPlayClient(const std::string& address, const u16 port, NetPlay
         {
         case ENET_EVENT_TYPE_CONNECT:
           m_server = netEvent.peer;
+
+          // Extend reliable traffic timeout
+          enet_peer_timeout(m_server, 0, PEER_TIMEOUT, PEER_TIMEOUT);
+
           if (Connect())
           {
             m_connection_state = ConnectionState::Connected;
@@ -821,6 +826,8 @@ void NetPlayClient::OnStartGame(sf::Packet& packet)
 
     for (auto slot : ExpansionInterface::SLOTS)
       packet >> m_net_settings.m_EXIDevice[slot];
+
+    packet >> m_net_settings.m_MemcardSizeOverride;
 
     for (u32& value : m_net_settings.m_SYSCONFSettings)
       packet >> value;
@@ -1581,49 +1588,6 @@ void NetPlayClient::ThreadFunc()
 }
 
 // called from ---GUI--- thread
-void NetPlayClient::GetPlayerList(std::string& list, std::vector<int>& pid_list)
-{
-  std::lock_guard lkp(m_crit.players);
-
-  std::ostringstream ss;
-
-  for (const auto& entry : m_players)
-  {
-    const Player& player = entry.second;
-    ss << player.name << "[" << static_cast<int>(player.pid) << "] : " << player.revision << " | "
-       << GetPlayerMappingString(player.pid, m_pad_map, m_gba_config, m_wiimote_map) << " |\n";
-
-    ss << "Ping: " << player.ping << "ms\n";
-    ss << "Status: ";
-
-    switch (player.game_status)
-    {
-    case SyncIdentifierComparison::SameGame:
-      ss << "ready";
-      break;
-
-    case SyncIdentifierComparison::DifferentVersion:
-      ss << "wrong game version";
-      break;
-
-    case SyncIdentifierComparison::DifferentGame:
-      ss << "game missing";
-      break;
-
-    default:
-      ss << "unknown";
-      break;
-    }
-
-    ss << "\n\n";
-
-    pid_list.push_back(player.pid);
-  }
-
-  list = ss.str();
-}
-
-// called from ---GUI--- thread
 std::vector<const Player*> NetPlayClient::GetPlayers()
 {
   std::lock_guard lkp(m_crit.players);
@@ -1739,24 +1703,26 @@ bool NetPlayClient::StartGame(const std::string& path)
 
   for (unsigned int i = 0; i < 4; ++i)
   {
-    WiimoteCommon::SetSource(i,
-                             m_wiimote_map[i] > 0 ? WiimoteSource::Emulated : WiimoteSource::None);
+    Config::SetCurrent(Config::GetInfoForWiimoteSource(i),
+                       m_wiimote_map[i] > 0 ? WiimoteSource::Emulated : WiimoteSource::None);
   }
 
   // boot game
   auto boot_session_data = std::make_unique<BootSessionData>();
-  boot_session_data->SetWiiSyncData(
-      std::move(m_wii_sync_fs), std::move(m_wii_sync_titles), std::move(m_wii_sync_redirect_folder),
-      [] {
-        // on emulation end clean up the Wii save sync directory -- see OnSyncSaveDataWii()
-        const std::string path = File::GetUserPath(D_USER_IDX) + "Wii" GC_MEMCARD_NETPLAY DIR_SEP;
-        if (File::Exists(path))
-          File::DeleteDirRecursively(path);
-        const std::string redirect_path =
-            File::GetUserPath(D_USER_IDX) + "Redirect" GC_MEMCARD_NETPLAY DIR_SEP;
-        if (File::Exists(redirect_path))
-          File::DeleteDirRecursively(redirect_path);
-      });
+  boot_session_data->SetWiiSyncData(std::move(m_wii_sync_fs), std::move(m_wii_sync_titles),
+                                    std::move(m_wii_sync_redirect_folder), [] {
+                                      // on emulation end clean up the Wii save sync directory --
+                                      // see OnSyncSaveDataWii()
+                                      const std::string wii_path = File::GetUserPath(D_USER_IDX) +
+                                                                   "Wii" GC_MEMCARD_NETPLAY DIR_SEP;
+                                      if (File::Exists(wii_path))
+                                        File::DeleteDirRecursively(wii_path);
+                                      const std::string redirect_path =
+                                          File::GetUserPath(D_USER_IDX) +
+                                          "Redirect" GC_MEMCARD_NETPLAY DIR_SEP;
+                                      if (File::Exists(redirect_path))
+                                        File::DeleteDirRecursively(redirect_path);
+                                    });
   m_dialog->BootGame(path, std::move(boot_session_data));
 
   UpdateDevices();

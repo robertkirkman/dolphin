@@ -42,6 +42,11 @@ namespace SerialInterface
 enum SIDevices : int;
 }
 
+namespace HSP
+{
+enum class HSPDeviceType : int;
+}
+
 namespace Config
 {
 // Main.Core
@@ -73,6 +78,7 @@ const Info<std::string>& GetInfoForAGPCartPath(ExpansionInterface::Slot slot);
 extern const Info<std::string> MAIN_GCI_FOLDER_A_PATH_OVERRIDE;
 extern const Info<std::string> MAIN_GCI_FOLDER_B_PATH_OVERRIDE;
 const Info<std::string>& GetInfoForGCIPathOverride(ExpansionInterface::Slot slot);
+extern const Info<int> MAIN_MEMORY_CARD_SIZE;
 extern const Info<ExpansionInterface::EXIDeviceType> MAIN_SLOT_A;
 extern const Info<ExpansionInterface::EXIDeviceType> MAIN_SLOT_B;
 extern const Info<ExpansionInterface::EXIDeviceType> MAIN_SERIAL_PORT_1;
@@ -109,6 +115,8 @@ extern const Info<u32> MAIN_MEM1_SIZE;
 extern const Info<u32> MAIN_MEM2_SIZE;
 // Should really be part of System::GFX, but again, we're stuck with past mistakes.
 extern const Info<std::string> MAIN_GFX_BACKEND;
+extern const Info<HSP::HSPDeviceType> MAIN_HSP_DEVICE;
+extern const Info<u32> MAIN_ARAM_EXPANSION_SIZE;
 
 enum class GPUDeterminismMode
 {
@@ -129,6 +137,8 @@ extern const Info<bool> MAIN_ALLOW_SD_WRITES;
 extern const Info<bool> MAIN_ENABLE_SAVESTATES;
 extern const Info<DiscIO::Region> MAIN_FALLBACK_REGION;
 extern const Info<bool> MAIN_REAL_WII_REMOTE_REPEAT_REPORTS;
+extern const Info<s32> MAIN_OVERRIDE_BOOT_IOS;
+extern const Info<std::string> MAIN_WII_NUS_SHOP_URL;
 
 // Main.DSP
 
@@ -179,11 +189,13 @@ void SetIsoPaths(const std::vector<std::string>& paths);
 
 // Main.GBA
 
+#ifdef HAS_LIBMGBA
 extern const Info<std::string> MAIN_GBA_BIOS_PATH;
 extern const std::array<Info<std::string>, 4> MAIN_GBA_ROM_PATHS;
 extern const Info<std::string> MAIN_GBA_SAVES_PATH;
 extern const Info<bool> MAIN_GBA_SAVES_IN_ROM_PATH;
 extern const Info<bool> MAIN_GBA_THREADS;
+#endif
 
 // Main.Network
 
@@ -319,4 +331,15 @@ extern const Info<std::string> MAIN_USB_PASSTHROUGH_DEVICES;
 std::set<std::pair<u16, u16>> GetUSBDeviceWhitelist();
 void SetUSBDeviceWhitelist(const std::set<std::pair<u16, u16>>& devices);
 
+// GameCube path utility functions
+
+// Replaces NTSC-K with some other region, and doesn't replace non-NTSC-K regions
+DiscIO::Region ToGameCubeRegion(DiscIO::Region region);
+// The region argument must be valid for GameCube (i.e. must not be NTSC-K)
+const char* GetDirectoryForRegion(DiscIO::Region region);
+std::string GetBootROMPath(const std::string& region_directory);
+std::string GetMemcardPath(ExpansionInterface::Slot slot, DiscIO::Region region,
+                           u16 size_mb = 0x80);
+std::string GetMemcardPath(std::string configured_filename, ExpansionInterface::Slot slot,
+                           DiscIO::Region region, u16 size_mb = 0x80);
 }  // namespace Config

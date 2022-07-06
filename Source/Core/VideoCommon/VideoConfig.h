@@ -9,10 +9,12 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "Common/CommonTypes.h"
+#include "VideoCommon/GraphicsModSystem/Config/GraphicsModGroup.h"
 #include "VideoCommon/VideoCommon.h"
 
 // Log in two categories, and save three other options in the same byte
@@ -87,6 +89,7 @@ struct VideoConfig final
   bool bShowNetPlayMessages = false;
   bool bOverlayStats = false;
   bool bOverlayProjStats = false;
+  bool bOverlayScissorStats = false;
   bool bTexFmtOverlayEnable = false;
   bool bTexFmtOverlayCenter = false;
   bool bLogRenderTimeToFile = false;
@@ -106,6 +109,7 @@ struct VideoConfig final
   bool bDumpFramesAsImages = false;
   bool bUseFFV1 = false;
   std::string sDumpCodec;
+  std::string sDumpPixelFormat;
   std::string sDumpEncoder;
   std::string sDumpFormat;
   std::string sDumpPath;
@@ -113,6 +117,8 @@ struct VideoConfig final
   bool bBorderlessFullscreen = false;
   bool bEnableGPUTextureDecoding = false;
   int iBitrateKbps = 0;
+  bool bGraphicMods = false;
+  std::optional<GraphicsModGroupConfig> graphics_mod_config;
 
   // Hacks
   bool bEFBAccessEnable = false;
@@ -156,8 +162,6 @@ struct VideoConfig final
   // VideoSW Debugging
   int drawStart = 0;
   int drawEnd = 0;
-  bool bZComploc = false;
-  bool bZFreeze = false;
   bool bDumpObjects = false;
   bool bDumpTevStages = false;
   bool bDumpTevTextureFetches = false;
@@ -204,7 +208,6 @@ struct VideoConfig final
     bool bSupportsExclusiveFullscreen = false;
     bool bSupportsDualSourceBlend = false;
     bool bSupportsPrimitiveRestart = false;
-    bool bSupportsOversizedViewports = false;
     bool bSupportsGeometryShaders = false;
     bool bSupportsComputeShaders = false;
     bool bSupports3DVision = false;
@@ -238,6 +241,7 @@ struct VideoConfig final
     bool bSupportsCoarseDerivatives = false;
     bool bSupportsTextureQueryLevels = false;
     bool bSupportsLodBiasInSampler = false;
+    bool bSupportsSettingObjectNames = false;
   } backend_info;
 
   // Utility

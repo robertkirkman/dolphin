@@ -8,7 +8,6 @@
 
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
-#include "Common/IniFile.h"
 
 #include "Core/Config/MainSettings.h"
 #include "Core/ConfigManager.h"
@@ -114,13 +113,11 @@ void Init()
 
   {
     u16 size_mbits = Memcard::MBIT_SIZE_MEMORY_CARD_2043;
-    int size_override;
-    IniFile gameIni = SConfig::GetInstance().LoadGameIni();
-    gameIni.GetOrCreateSection("Core")->Get("MemoryCardSize", &size_override, -1);
+    int size_override = Config::Get(Config::MAIN_MEMORY_CARD_SIZE);
     if (size_override >= 0 && size_override <= 4)
       size_mbits = Memcard::MBIT_SIZE_MEMORY_CARD_59 << size_override;
     const bool shift_jis =
-        SConfig::ToGameCubeRegion(SConfig::GetInstance().m_region) == DiscIO::Region::NTSC_J;
+        Config::ToGameCubeRegion(SConfig::GetInstance().m_region) == DiscIO::Region::NTSC_J;
     const CardFlashId& flash_id = g_SRAM.settings_ex.flash_id[Memcard::SLOT_A];
     const u32 rtc_bias = g_SRAM.settings.rtc_bias;
     const u32 sram_language = static_cast<u32>(g_SRAM.settings.language);

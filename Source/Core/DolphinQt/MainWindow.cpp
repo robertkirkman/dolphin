@@ -39,6 +39,7 @@
 #include "Core/CommonTitles.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Config/NetplaySettings.h"
+#include "Core/Config/WiimoteSettings.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/FreeLookManager.h"
@@ -112,6 +113,7 @@
 #include "DolphinQt/WiiUpdate.h"
 
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
+#include "InputCommon/GCAdapter.h"
 
 #include "UICommon/DiscordPresence.h"
 #include "UICommon/GameFile.h"
@@ -323,10 +325,11 @@ void MainWindow::InitControllers()
   if (!g_controller_interface.HasDefaultDevice())
   {
     // Note that the CI default device could be still temporarily removed at any time
-    WARN_LOG(CONTROLLERINTERFACE,
-             "No default device has been added in time. EmulatedController(s) defaulting adds"
-             " input mappings made for a specific default device depending on the platform");
+    WARN_LOG_FMT(CONTROLLERINTERFACE,
+                 "No default device has been added in time. EmulatedController(s) defaulting adds"
+                 " input mappings made for a specific default device depending on the platform");
   }
+  GCAdapter::Init();
   Pad::Initialize();
   Pad::InitializeGBA();
   Keyboard::Initialize();
@@ -356,6 +359,8 @@ void MainWindow::InitControllers()
 void MainWindow::ShutdownControllers()
 {
   m_hotkey_scheduler->Stop();
+
+  Settings::Instance().UnregisterDevicesChangedCallback();
 
   Pad::Shutdown();
   Pad::ShutdownGBA();
@@ -452,6 +457,7 @@ void MainWindow::CreateComponents()
   };
 
   connect(m_watch_widget, &WatchWidget::RequestMemoryBreakpoint, request_memory_breakpoint);
+  connect(m_watch_widget, &WatchWidget::ShowMemory, m_memory_widget, &MemoryWidget::SetAddress);
   connect(m_register_widget, &RegisterWidget::RequestMemoryBreakpoint, request_memory_breakpoint);
   connect(m_register_widget, &RegisterWidget::RequestWatch, request_watch);
   connect(m_register_widget, &RegisterWidget::RequestViewInMemory, request_view_in_memory);
@@ -477,10 +483,13 @@ void MainWindow::CreateComponents()
           &CodeWidget::Update);
   connect(m_breakpoint_widget, &BreakpointWidget::BreakpointsChanged, m_memory_widget,
           &MemoryWidget::Update);
-  connect(m_breakpoint_widget, &BreakpointWidget::SelectedBreakpoint, [this](u32 address) {
+  connect(m_breakpoint_widget, &BreakpointWidget::ShowCode, [this](u32 address) {
     if (Core::GetState() == Core::State::Paused)
       m_code_widget->SetAddress(address, CodeViewWidget::SetAddressUpdate::WithDetailedUpdate);
   });
+  connect(m_breakpoint_widget, &BreakpointWidget::ShowMemory, m_memory_widget,
+          &MemoryWidget::SetAddress);
+  connect(m_cheats_manager, &CheatsManager::ShowMemory, m_memory_widget, &MemoryWidget::SetAddress);
 }
 
 void MainWindow::ConnectMenuBar()
@@ -663,6 +672,7 @@ void MainWindow::ConnectGameList()
           &MainWindow::ShowRiivolutionBootWidget);
 
   connect(m_game_list, &GameList::OpenGeneralSettings, this, &MainWindow::ShowGeneralWindow);
+  connect(m_game_list, &GameList::OpenGraphicsSettings, this, &MainWindow::ShowGraphicsWindow);
 }
 
 void MainWindow::ConnectRenderWidget()
@@ -822,7 +832,7 @@ void MainWindow::TogglePause()
 void MainWindow::OnStopComplete()
 {
   m_stop_requested = false;
-  HideRenderWidget(true, m_exit_requested);
+  HideRenderWidget(!m_exit_requested, m_exit_requested);
 #ifdef USE_DISCORD_PRESENCE
   if (!m_netplay_dialog->isVisible())
     Discord::UpdateDiscordPresence();
@@ -831,7 +841,7 @@ void MainWindow::OnStopComplete()
   SetFullScreenResolution(false);
 
   if (m_exit_requested || Settings::Instance().IsBatchModeEnabled())
-    QGuiApplication::instance()->quit();
+    QGuiApplication::exit(0);
 
   // If the current emulation prevented the booting of another, do that now
   if (m_pending_boot != nullptr)
@@ -1735,7 +1745,7 @@ void MainWindow::OnStartRecording()
       controllers[i] = Movie::ControllerType::GC;
     else
       controllers[i] = Movie::ControllerType::None;
-    wiimotes[i] = WiimoteCommon::GetSource(i) != WiimoteSource::None;
+    wiimotes[i] = Config::Get(Config::GetInfoForWiimoteSource(i)) != WiimoteSource::None;
   }
 
   if (Movie::BeginRecordingInput(controllers, wiimotes))
@@ -1795,7 +1805,7 @@ void MainWindow::ShowTASInput()
 
   for (int i = 0; i < num_wii_controllers; i++)
   {
-    if (WiimoteCommon::GetSource(i) == WiimoteSource::Emulated &&
+    if (Config::Get(Config::GetInfoForWiimoteSource(i)) == WiimoteSource::Emulated &&
         (!Core::IsRunning() || SConfig::GetInstance().bWii))
     {
       m_wii_tas_input_windows[i]->show();

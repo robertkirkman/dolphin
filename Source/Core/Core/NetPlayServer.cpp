@@ -417,7 +417,7 @@ ConnectionError NetPlayServer::OnConnect(ENetPeer* socket, sf::Packet& rpac)
     return ConnectionError::NameTooLong;
 
   // Extend reliable traffic timeout
-  enet_peer_timeout(socket, 0, 30000, 30000);
+  enet_peer_timeout(socket, 0, PEER_TIMEOUT, PEER_TIMEOUT);
 
   // cause pings to be updated
   m_update_pings = true;
@@ -1324,6 +1324,8 @@ bool NetPlayServer::SetupNetSettings()
     settings.m_EXIDevice[slot] = device;
   }
 
+  settings.m_MemcardSizeOverride = Config::Get(Config::MAIN_MEMORY_CARD_SIZE);
+
   for (size_t i = 0; i < Config::SYSCONF_SETTINGS.size(); ++i)
   {
     std::visit(
@@ -1361,7 +1363,7 @@ bool NetPlayServer::SetupNetSettings()
   settings.m_Fastmem = Config::Get(Config::MAIN_FASTMEM);
   settings.m_SkipIPL = Config::Get(Config::MAIN_SKIP_IPL) || !DoAllPlayersHaveIPLDump();
   settings.m_LoadIPLDump = Config::Get(Config::SESSION_LOAD_IPL_DUMP) && DoAllPlayersHaveIPLDump();
-  settings.m_VertexRounding = Config::Get(Config::GFX_HACK_VERTEX_ROUDING);
+  settings.m_VertexRounding = Config::Get(Config::GFX_HACK_VERTEX_ROUNDING);
   settings.m_InternalResolution = Config::Get(Config::GFX_EFB_SCALE);
   settings.m_EFBScaledCopy = Config::Get(Config::GFX_HACK_COPY_EFB_SCALED);
   settings.m_FastDepthCalc = Config::Get(Config::GFX_FAST_DEPTH_CALC);
@@ -1468,8 +1470,8 @@ bool NetPlayServer::StartGame()
 
   const sf::Uint64 initial_rtc = GetInitialNetPlayRTC();
 
-  const std::string region = SConfig::GetDirectoryForRegion(
-      SConfig::ToGameCubeRegion(m_dialog->FindGameFile(m_selected_game_identifier)->GetRegion()));
+  const std::string region = Config::GetDirectoryForRegion(
+      Config::ToGameCubeRegion(m_dialog->FindGameFile(m_selected_game_identifier)->GetRegion()));
 
   // sync GC SRAM with clients
   if (!g_SRAM_netplay_initialized)
@@ -1509,6 +1511,8 @@ bool NetPlayServer::StartGame()
 
   for (auto slot : ExpansionInterface::SLOTS)
     spac << static_cast<int>(m_settings.m_EXIDevice[slot]);
+
+  spac << m_settings.m_MemcardSizeOverride;
 
   for (u32 value : m_settings.m_SYSCONFSettings)
     spac << value;
@@ -1661,8 +1665,8 @@ bool NetPlayServer::SyncSaveData()
   if (save_count == 0)
     return true;
 
-  const std::string region =
-      SConfig::GetDirectoryForRegion(SConfig::ToGameCubeRegion(game->GetRegion()));
+  const auto game_region = game->GetRegion();
+  const std::string region = Config::GetDirectoryForRegion(Config::ToGameCubeRegion(game_region));
 
   for (ExpansionInterface::Slot slot : ExpansionInterface::MEMCARD_SLOTS)
   {
@@ -1670,20 +1674,12 @@ bool NetPlayServer::SyncSaveData()
 
     if (m_settings.m_EXIDevice[slot] == ExpansionInterface::EXIDeviceType::MemoryCard)
     {
-      std::string path = Config::Get(Config::GetInfoForMemcardPath(slot));
-
-      MemoryCard::CheckPath(path, region, slot);
-
-      int size_override;
-      IniFile gameIni = SConfig::LoadGameIni(game->GetGameID(), game->GetRevision());
-      gameIni.GetOrCreateSection("Core")->Get("MemoryCardSize", &size_override, -1);
-
-      if (size_override >= 0 && size_override <= 4)
-      {
-        path.insert(path.find_last_of('.'),
-                    fmt::format(".{}", Memcard::MbitToFreeBlocks(Memcard::MBIT_SIZE_MEMORY_CARD_59
-                                                                 << size_override)));
-      }
+      const int size_override = m_settings.m_MemcardSizeOverride;
+      const u16 card_size_mbits =
+          size_override >= 0 && size_override <= 4 ?
+              static_cast<u16>(Memcard::MBIT_SIZE_MEMORY_CARD_59 << size_override) :
+              Memcard::MBIT_SIZE_MEMORY_CARD_2043;
+      const std::string path = Config::GetMemcardPath(slot, game_region, card_size_mbits);
 
       sf::Packet pac;
       pac << MessageID::SyncSaveData;

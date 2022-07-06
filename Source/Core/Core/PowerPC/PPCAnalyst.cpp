@@ -367,6 +367,7 @@ void FindFunctions(u32 startAddr, u32 endAddr, PPCSymbolDB* func_db)
 
   // Step 2:
   func_db->FillInCallers();
+  func_db->Index();
 
   int numLeafs = 0, numNice = 0, numUnNice = 0;
   int numTimer = 0, numRFI = 0, numStraightLeaf = 0;
@@ -946,8 +947,8 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer,
     op.gprDiscardable = gprDiscardable;
     op.fprDiscardable = fprDiscardable;
     op.fprInXmm = fprInXmm;
-    gprInUse |= op.regsIn;
-    fprInUse |= op.fregsIn;
+    gprInUse |= op.regsIn | op.regsOut;
+    fprInUse |= op.fregsIn | op.GetFregsOut();
     if (op.canEndBlock || op.canCauseException)
     {
       gprDiscardable = BitSet32{};

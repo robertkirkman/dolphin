@@ -10,6 +10,7 @@
 #include "Core/Config/GraphicsSettings.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Config/UISettings.h"
+#include "Core/Config/WiimoteSettings.h"
 
 namespace ConfigLoaders
 {
@@ -38,9 +39,10 @@ bool IsSettingSaveable(const Config::Location& config_location)
     // TODO: Kill the current Android controller mappings system
     if (config_location.section == "Android")
     {
-      static constexpr std::array<const char*, 8> android_setting_saveable = {
-          "ControlScale",    "ControlOpacity", "EmulationOrientation", "JoystickRelCenter",
-          "LastPlatformTab", "MotionControls", "PhoneRumble",          "ShowInputOverlay"};
+      static constexpr std::array<const char*, 10> android_setting_saveable = {
+          "ControlScale",    "ControlOpacity",  "EmulationOrientation", "JoystickRelCenter",
+          "LastPlatformTab", "MotionControls",  "PhoneRumble",          "ShowInputOverlay",
+          "IRMode",          "IRAlwaysRecenter"};
 
       return std::any_of(
           android_setting_saveable.cbegin(), android_setting_saveable.cend(),
@@ -124,10 +126,19 @@ bool IsSettingSaveable(const Config::Location& config_location)
       &Config::MAIN_SYNC_GPU_MAX_DISTANCE.GetLocation(),
       &Config::MAIN_SYNC_GPU_MIN_DISTANCE.GetLocation(),
       &Config::MAIN_SYNC_GPU_OVERCLOCK.GetLocation(),
+      &Config::MAIN_OVERRIDE_BOOT_IOS.GetLocation(),
 
       // UI.General
 
       &Config::MAIN_USE_DISCORD_PRESENCE.GetLocation(),
+
+      // Wiimote
+
+      &Config::WIIMOTE_1_SOURCE.GetLocation(),
+      &Config::WIIMOTE_2_SOURCE.GetLocation(),
+      &Config::WIIMOTE_3_SOURCE.GetLocation(),
+      &Config::WIIMOTE_4_SOURCE.GetLocation(),
+      &Config::WIIMOTE_BB_SOURCE.GetLocation(),
   };
 
   return std::any_of(begin(s_setting_saveable), end(s_setting_saveable),

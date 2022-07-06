@@ -40,6 +40,7 @@ public:
     layer->Set(Config::MAIN_OVERCLOCK, m_settings.m_OCFactor);
     for (ExpansionInterface::Slot slot : ExpansionInterface::SLOTS)
       layer->Set(Config::GetInfoForEXIDevice(slot), m_settings.m_EXIDevice[slot]);
+    layer->Set(Config::MAIN_MEMORY_CARD_SIZE, m_settings.m_MemcardSizeOverride);
     layer->Set(Config::SESSION_SAVE_DATA_WRITABLE, m_settings.m_WriteToMemcard);
     layer->Set(Config::MAIN_RAM_OVERRIDE_ENABLE, m_settings.m_RAMOverrideEnable);
     layer->Set(Config::MAIN_MEM1_SIZE, m_settings.m_Mem1Size);
@@ -97,7 +98,7 @@ public:
 
     if (m_settings.m_StrictSettingsSync)
     {
-      layer->Set(Config::GFX_HACK_VERTEX_ROUDING, m_settings.m_VertexRounding);
+      layer->Set(Config::GFX_HACK_VERTEX_ROUNDING, m_settings.m_VertexRounding);
       layer->Set(Config::GFX_EFB_SCALE, m_settings.m_InternalResolution);
       layer->Set(Config::GFX_HACK_COPY_EFB_SCALED, m_settings.m_EFBScaledCopy);
       layer->Set(Config::GFX_FAST_DEPTH_CALC, m_settings.m_FastDepthCalc);
@@ -138,10 +139,12 @@ public:
       layer->Set(Config::SESSION_GCI_FOLDER_CURRENT_GAME_ONLY, true);
     }
 
+#ifdef HAS_LIBMGBA
     for (size_t i = 0; i < m_settings.m_GBARomPaths.size(); ++i)
     {
       layer->Set(Config::MAIN_GBA_ROM_PATHS[i], m_settings.m_GBARomPaths[i]);
     }
+#endif
 
     // Check To Override Client's Cheat Codes
     if (m_settings.m_SyncCodes && !m_settings.m_IsHosting)
