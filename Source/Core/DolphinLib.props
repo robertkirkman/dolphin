@@ -315,13 +315,16 @@
     <ClInclude Include="Core\HW\WiimoteCommon\WiimoteReport.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Camera.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Dynamics.h" />
+    <ClInclude Include="Core\HW\WiimoteEmu\DesiredWiimoteState.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Encryption.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\Classic.h" />
+    <ClInclude Include="Core\HW\WiimoteEmu\Extension\DesiredExtensionState.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\DrawsomeTablet.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\Drums.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\Extension.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\Guitar.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\Nunchuk.h" />
+    <ClInclude Include="Core\HW\WiimoteEmu\Extension\Shinkansen.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\TaTaCon.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\Turntable.h" />
     <ClInclude Include="Core\HW\WiimoteEmu\Extension\UDrawTablet.h" />
@@ -575,7 +578,6 @@
     <ClInclude Include="VideoBackends\OGL\VideoBackend.h" />
     <ClInclude Include="VideoBackends\Software\Clipper.h" />
     <ClInclude Include="VideoBackends\Software\CopyRegion.h" />
-    <ClInclude Include="VideoBackends\Software\DebugUtil.h" />
     <ClInclude Include="VideoBackends\Software\EfbCopy.h" />
     <ClInclude Include="VideoBackends\Software\EfbInterface.h" />
     <ClInclude Include="VideoBackends\Software\NativeVertexFormat.h" />
@@ -931,6 +933,7 @@
     <ClCompile Include="Core\HW\Wiimote.cpp" />
     <ClCompile Include="Core\HW\WiimoteCommon\DataReport.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\Camera.cpp" />
+    <ClCompile Include="Core\HW\WiimoteEmu\DesiredWiimoteState.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\Dynamics.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\EmuSubroutines.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\Encryption.cpp" />
@@ -940,6 +943,7 @@
     <ClCompile Include="Core\HW\WiimoteEmu\Extension\Extension.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\Extension\Guitar.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\Extension\Nunchuk.cpp" />
+    <ClCompile Include="Core\HW\WiimoteEmu\Extension\Shinkansen.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\Extension\TaTaCon.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\Extension\Turntable.cpp" />
     <ClCompile Include="Core\HW\WiimoteEmu\Extension\UDrawTablet.cpp" />
@@ -1183,7 +1187,6 @@
     <ClCompile Include="VideoBackends\OGL\ProgramShaderCache.cpp" />
     <ClCompile Include="VideoBackends\OGL\SamplerCache.cpp" />
     <ClCompile Include="VideoBackends\Software\Clipper.cpp" />
-    <ClCompile Include="VideoBackends\Software\DebugUtil.cpp" />
     <ClCompile Include="VideoBackends\Software\EfbCopy.cpp" />
     <ClCompile Include="VideoBackends\Software\EfbInterface.cpp" />
     <ClCompile Include="VideoBackends\Software\Rasterizer.cpp" />

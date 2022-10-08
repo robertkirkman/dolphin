@@ -33,8 +33,9 @@ AdvancedWidget::AdvancedWidget(GraphicsWindow* parent)
   AddDescriptions();
 
   connect(parent, &GraphicsWindow::BackendChanged, this, &AdvancedWidget::OnBackendChanged);
-  connect(&Settings::Instance(), &Settings::EmulationStateChanged, this,
-          [=](Core::State state) { OnEmulationStateChanged(state != Core::State::Uninitialized); });
+  connect(&Settings::Instance(), &Settings::EmulationStateChanged, this, [this](Core::State state) {
+    OnEmulationStateChanged(state != Core::State::Uninitialized);
+  });
 
   OnBackendChanged();
   OnEmulationStateChanged(Core::GetState() != Core::State::Uninitialized);
@@ -196,6 +197,7 @@ void AdvancedWidget::SaveSettings()
 
 void AdvancedWidget::OnBackendChanged()
 {
+  m_backend_multithreading->setEnabled(g_Config.backend_info.bSupportsMultithreading);
 }
 
 void AdvancedWidget::OnEmulationStateChanged(bool running)

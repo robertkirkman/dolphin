@@ -79,6 +79,8 @@ public enum BooleanSetting implements AbstractBooleanSetting
   MAIN_DEBUG_JIT_REGISTER_CACHE_OFF(Settings.FILE_DOLPHIN, Settings.SECTION_DEBUG,
           "JitRegisterCacheOff", false),
 
+  MAIN_SHOW_GAME_TITLES(Settings.FILE_DOLPHIN, Settings.SECTION_INI_ANDROID,
+          "ShowGameTitles", true),
   MAIN_JOYSTICK_REL_CENTER(Settings.FILE_DOLPHIN, Settings.SECTION_INI_ANDROID,
           "JoystickRelCenter", true),
   MAIN_PHONE_RUMBLE(Settings.FILE_DOLPHIN, Settings.SECTION_INI_ANDROID,
@@ -324,6 +326,18 @@ public enum BooleanSetting implements AbstractBooleanSetting
     else
     {
       settings.getSection(mFile, mSection).setBoolean(mKey, newValue);
+    }
+  }
+
+  public void setBoolean(int layerType, boolean newValue)
+  {
+    if (NativeConfig.isSettingSaveable(mFile, mSection, mKey))
+    {
+      NativeConfig.setBoolean(layerType, mFile, mSection, mKey, newValue);
+    }
+    else
+    {
+      throw new UnsupportedOperationException("The old config system doesn't support layers");
     }
   }
 

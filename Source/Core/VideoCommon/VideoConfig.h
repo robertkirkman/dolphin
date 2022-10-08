@@ -152,13 +152,6 @@ struct VideoConfig final
   // D3D only config, mostly to be merged into the above
   int iAdapter = 0;
 
-  // VideoSW Debugging
-  int drawStart = 0;
-  int drawEnd = 0;
-  bool bDumpObjects = false;
-  bool bDumpTevStages = false;
-  bool bDumpTevTextureFetches = false;
-
   // Enable API validation layers, currently only supported with Vulkan.
   bool bEnableValidationLayer = false;
 
@@ -236,6 +229,7 @@ struct VideoConfig final
     bool bSupportsLodBiasInSampler = false;
     bool bSupportsSettingObjectNames = false;
     bool bSupportsPartialMultisampleResolve = false;
+    bool bSupportsDynamicVertexLoader = false;
   } backend_info;
 
   // Utility

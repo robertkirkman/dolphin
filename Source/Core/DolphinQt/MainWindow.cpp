@@ -357,11 +357,9 @@ void MainWindow::ShutdownControllers()
 
 void MainWindow::InitCoreCallbacks()
 {
-  connect(&Settings::Instance(), &Settings::EmulationStateChanged, this, [=](Core::State state) {
+  connect(&Settings::Instance(), &Settings::EmulationStateChanged, this, [this](Core::State state) {
     if (state == Core::State::Uninitialized)
       OnStopComplete();
-    if (state != Core::State::Uninitialized && NetPlay::IsNetPlayRunning() && m_controllers_window)
-      m_controllers_window->reject();
 
     if (state == Core::State::Running && m_fullscreen_requested)
     {
@@ -374,7 +372,7 @@ void MainWindow::InitCoreCallbacks()
 
   // Handle file open events
   auto* filter = new FileOpenEventFilter(QGuiApplication::instance());
-  connect(filter, &FileOpenEventFilter::fileOpened, this, [=](const QString& file_name) {
+  connect(filter, &FileOpenEventFilter::fileOpened, this, [this](const QString& file_name) {
     StartGame(BootParameters::GenerateFromFile(file_name.toStdString()));
   });
 }
@@ -404,15 +402,6 @@ void MainWindow::CreateComponents()
     m_gc_tas_input_windows[i] = new GCTASInputWindow(nullptr, i);
     m_wii_tas_input_windows[i] = new WiiTASInputWindow(nullptr, i);
   }
-
-  Movie::SetGCInputManip([this](GCPadStatus* pad_status, int controller_id) {
-    m_gc_tas_input_windows[controller_id]->GetValues(pad_status);
-  });
-
-  Movie::SetWiiInputManip([this](WiimoteCommon::DataReportBuilder& rpt, int controller_id, int ext,
-                                 const WiimoteEmu::EncryptionKey& key) {
-    m_wii_tas_input_windows[controller_id]->GetValues(rpt, ext, key);
-  });
 
   m_jit_widget = new JITWidget(this);
   m_log_widget = new LogWidget(this);

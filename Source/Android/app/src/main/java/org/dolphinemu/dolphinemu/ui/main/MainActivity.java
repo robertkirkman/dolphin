@@ -37,6 +37,7 @@ import org.dolphinemu.dolphinemu.utils.DirectoryInitialization;
 import org.dolphinemu.dolphinemu.utils.FileBrowserHelper;
 import org.dolphinemu.dolphinemu.utils.PermissionsHandler;
 import org.dolphinemu.dolphinemu.utils.StartupHandler;
+import org.dolphinemu.dolphinemu.utils.ThemeHelper;
 import org.dolphinemu.dolphinemu.utils.WiiUtils;
 
 /**
@@ -44,12 +45,14 @@ import org.dolphinemu.dolphinemu.utils.WiiUtils;
  * individually display a grid of available games for each Fragment, in a tabbed layout.
  */
 public final class MainActivity extends AppCompatActivity
-        implements MainView, SwipeRefreshLayout.OnRefreshListener
+        implements MainView, SwipeRefreshLayout.OnRefreshListener, ThemeProvider
 {
   private ViewPager mViewPager;
   private Toolbar mToolbar;
   private TabLayout mTabLayout;
   private FloatingActionButton mFab;
+
+  private int mThemeId;
 
   private final MainPresenter mPresenter = new MainPresenter(this, this);
 
@@ -59,6 +62,8 @@ public final class MainActivity extends AppCompatActivity
     SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
     splashScreen.setKeepOnScreenCondition(
             () -> !DirectoryInitialization.areDolphinDirectoriesReady());
+
+    ThemeHelper.setTheme(this);
 
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_main);
@@ -74,7 +79,10 @@ public final class MainActivity extends AppCompatActivity
 
     // Stuff in this block only happens when this activity is newly created (i.e. not a rotation)
     if (savedInstanceState == null)
+    {
       StartupHandler.HandleInit(this);
+      new AfterDirectoryInitializationRunner().runWithLifecycle(this, this::checkTheme);
+    }
 
     if (!DirectoryInitialization.isWaitingForWriteAccess(this))
     {
@@ -86,6 +94,8 @@ public final class MainActivity extends AppCompatActivity
   @Override
   protected void onResume()
   {
+    ThemeHelper.setCorrectTheme(this);
+
     super.onResume();
 
     if (DirectoryInitialization.shouldStart(this))
@@ -291,7 +301,7 @@ public final class MainActivity extends AppCompatActivity
   public void onRefresh()
   {
     setRefreshing(true);
-    GameFileCacheManager.startRescan(this);
+    GameFileCacheManager.startRescan();
   }
 
   /**
@@ -336,7 +346,7 @@ public final class MainActivity extends AppCompatActivity
   private void setPlatformTabsAndStartGameFileCacheService()
   {
     PlatformPagerAdapter platformPagerAdapter = new PlatformPagerAdapter(
-            getSupportFragmentManager(), this, this);
+            getSupportFragmentManager(), this);
     mViewPager.setAdapter(platformPagerAdapter);
     mViewPager.setOffscreenPageLimit(platformPagerAdapter.getCount());
     mTabLayout.setupWithViewPager(mViewPager);
@@ -350,9 +360,32 @@ public final class MainActivity extends AppCompatActivity
       }
     });
 
+    for (int i = 0; i < PlatformPagerAdapter.TAB_ICONS.length; i++)
+    {
+      mTabLayout.getTabAt(i).setIcon(PlatformPagerAdapter.TAB_ICONS[i]);
+    }
+
     mViewPager.setCurrentItem(IntSetting.MAIN_LAST_PLATFORM_TAB.getIntGlobal());
 
     showGames();
-    GameFileCacheManager.startLoad(this);
+    GameFileCacheManager.startLoad();
+  }
+
+  @Override
+  public void setTheme(int themeId)
+  {
+    super.setTheme(themeId);
+    this.mThemeId = themeId;
+  }
+
+  @Override
+  public int getThemeId()
+  {
+    return mThemeId;
+  }
+
+  private void checkTheme()
+  {
+    ThemeHelper.setCorrectTheme(this);
   }
 }

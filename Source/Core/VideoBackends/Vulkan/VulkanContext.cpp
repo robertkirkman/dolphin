@@ -223,7 +223,10 @@ bool VulkanContext::SelectInstanceExtensions(std::vector<const char*>* extension
     WARN_LOG_FMT(VIDEO, "Vulkan: Debug report requested, but extension is not available.");
 
   AddExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, false);
-  AddExtension(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME, false);
+  if (wstype != WindowSystemType::Headless)
+  {
+    AddExtension(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME, false);
+  }
 
   if (AddExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, false))
   {
@@ -295,6 +298,7 @@ void VulkanContext::PopulateBackendInfo(VideoConfig* config)
   config->backend_info.bSupportsLodBiasInSampler = false;          // Dependent on OS.
   config->backend_info.bSupportsSettingObjectNames = false;        // Dependent on features.
   config->backend_info.bSupportsPartialMultisampleResolve = true;  // Assumed support.
+  config->backend_info.bSupportsDynamicVertexLoader = true;        // Assumed support.
 }
 
 void VulkanContext::PopulateBackendInfoAdapters(VideoConfig* config, const GPUList& gpu_list)
