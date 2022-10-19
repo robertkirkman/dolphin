@@ -948,7 +948,7 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   js.downcountAmount = 0;
   js.skipInstructions = 0;
   js.carryFlag = CarryFlag::InPPCState;
-  js.constantGqr.clear();
+  js.constantGqrValid = BitSet8();
 
   // Assume that GQR values don't change often at runtime. Many paired-heavy games use largely float
   // loads and stores,
@@ -979,6 +979,7 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
         CMP_or_TEST(32, PPCSTATE(spr[SPR_GQR0 + gqr]), Imm32(value));
         J_CC(CC_NZ, target);
       }
+      js.constantGqrValid = gqr_static;
     }
   }
 
@@ -1281,7 +1282,7 @@ void Jit64::IntializeSpeculativeConstants()
         ABI_CallFunctionC(JitInterface::CompileExceptionCheck,
                           static_cast<u32>(JitInterface::ExceptionType::SpeculativeConstants));
         ABI_PopRegistersAndAdjustStack({}, 0);
-        JMP(asm_routines.dispatcher, true);
+        JMP(asm_routines.dispatcher_no_check, true);
         SwitchToNearCode();
       }
       CMP(32, PPCSTATE(gpr[i]), Imm32(compileTimeValue));
