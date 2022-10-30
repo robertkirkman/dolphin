@@ -86,11 +86,10 @@ public:
 
   // Schedule a vulkan resource for destruction later on. This will occur when the command buffer
   // is next re-used, and the GPU has finished working with the specified resource.
-  void DeferBufferDestruction(VkBuffer object);
   void DeferBufferViewDestruction(VkBufferView object);
-  void DeferDeviceMemoryDestruction(VkDeviceMemory object);
+  void DeferBufferDestruction(VkBuffer buffer, VmaAllocation alloc);
   void DeferFramebufferDestruction(VkFramebuffer object);
-  void DeferImageDestruction(VkImage object);
+  void DeferImageDestruction(VkImage object, VmaAllocation alloc);
   void DeferImageViewDestruction(VkImageView object);
 
 private:
@@ -118,6 +117,7 @@ private:
     u64 fence_counter = 0;
     bool init_command_buffer_used = false;
     bool semaphore_used = false;
+    std::atomic<bool> waiting_for_submit{false};
     u32 frame_index = 0;
 
     std::vector<std::function<void()>> cleanup_resources;

@@ -239,6 +239,8 @@ bool CommandBufferManager::CreateSubmitThread()
 
       SubmitCommandBuffer(submit.command_buffer_index, submit.present_swap_chain,
                           submit.present_image_index);
+      CmdBufferResources& resources = m_command_buffers[submit.command_buffer_index];
+      resources.waiting_for_submit.store(false, std::memory_order_release);
 
       {
         std::lock_guard<std::mutex> guard(m_pending_submit_lock);
@@ -284,10 +286,15 @@ void CommandBufferManager::WaitForFenceCounter(u64 fence_counter)
 
 void CommandBufferManager::WaitForCommandBufferCompletion(u32 index)
 {
-  // Ensure this command buffer has been submitted.
-  WaitForWorkerThreadIdle();
-
   CmdBufferResources& resources = m_command_buffers[index];
+
+  // Ensure this command buffer has been submitted.
+  if (resources.waiting_for_submit.load(std::memory_order_acquire))
+  {
+    WaitForWorkerThreadIdle();
+    ASSERT_MSG(VIDEO, !resources.waiting_for_submit.load(std::memory_order_relaxed),
+               "Submit thread is idle but command buffer is still waiting for submission!");
+  }
 
   // Wait for this command buffer to be completed.
   VkResult res =
@@ -339,6 +346,7 @@ void CommandBufferManager::SubmitCommandBuffer(bool submit_on_worker_thread,
   // Submitting off-thread?
   if (m_use_threaded_submission && submit_on_worker_thread && !wait_for_completion)
   {
+    resources.waiting_for_submit.store(true, std::memory_order_relaxed);
     // Push to the pending submit queue.
     {
       std::lock_guard<std::mutex> guard(m_pending_submit_lock);
@@ -525,13 +533,6 @@ void CommandBufferManager::BeginCommandBuffer()
   m_current_cmd_buffer = next_buffer_index;
 }
 
-void CommandBufferManager::DeferBufferDestruction(VkBuffer object)
-{
-  CmdBufferResources& cmd_buffer_resources = GetCurrentCmdBufferResources();
-  cmd_buffer_resources.cleanup_resources.push_back(
-      [object]() { vkDestroyBuffer(g_vulkan_context->GetDevice(), object, nullptr); });
-}
-
 void CommandBufferManager::DeferBufferViewDestruction(VkBufferView object)
 {
   CmdBufferResources& cmd_buffer_resources = GetCurrentCmdBufferResources();
@@ -539,11 +540,12 @@ void CommandBufferManager::DeferBufferViewDestruction(VkBufferView object)
       [object]() { vkDestroyBufferView(g_vulkan_context->GetDevice(), object, nullptr); });
 }
 
-void CommandBufferManager::DeferDeviceMemoryDestruction(VkDeviceMemory object)
+void CommandBufferManager::DeferBufferDestruction(VkBuffer buffer, VmaAllocation alloc)
 {
   CmdBufferResources& cmd_buffer_resources = GetCurrentCmdBufferResources();
-  cmd_buffer_resources.cleanup_resources.push_back(
-      [object]() { vkFreeMemory(g_vulkan_context->GetDevice(), object, nullptr); });
+  cmd_buffer_resources.cleanup_resources.push_back([buffer, alloc]() {
+    vmaDestroyBuffer(g_vulkan_context->GetMemoryAllocator(), buffer, alloc);
+  });
 }
 
 void CommandBufferManager::DeferFramebufferDestruction(VkFramebuffer object)
@@ -553,11 +555,11 @@ void CommandBufferManager::DeferFramebufferDestruction(VkFramebuffer object)
       [object]() { vkDestroyFramebuffer(g_vulkan_context->GetDevice(), object, nullptr); });
 }
 
-void CommandBufferManager::DeferImageDestruction(VkImage object)
+void CommandBufferManager::DeferImageDestruction(VkImage image, VmaAllocation alloc)
 {
   CmdBufferResources& cmd_buffer_resources = GetCurrentCmdBufferResources();
   cmd_buffer_resources.cleanup_resources.push_back(
-      [object]() { vkDestroyImage(g_vulkan_context->GetDevice(), object, nullptr); });
+      [image, alloc]() { vmaDestroyImage(g_vulkan_context->GetMemoryAllocator(), image, alloc); });
 }
 
 void CommandBufferManager::DeferImageViewDestruction(VkImageView object)
