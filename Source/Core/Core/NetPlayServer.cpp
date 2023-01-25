@@ -383,10 +383,10 @@ static void SendSyncIdentifier(sf::Packet& spac, const SyncIdentifier& sync_iden
 // called from ---NETPLAY--- thread
 ConnectionError NetPlayServer::OnConnect(ENetPeer* incoming_connection, sf::Packet& received_packet)
 {
-  std::string netplay_version;
-  received_packet >> netplay_version;
-  if (netplay_version != Common::GetScmRevGitStr())
-    return ConnectionError::VersionMismatch;
+  // std::string netplay_version;
+  // received_packet >> netplay_version;
+  // if (netplay_version != Common::GetScmRevGitStr())
+  //   return ConnectionError::VersionMismatch;
 
   if (m_is_running || m_start_pending)
     return ConnectionError::GameRunning;
