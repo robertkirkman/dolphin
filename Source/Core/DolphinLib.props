@@ -37,6 +37,7 @@
     <ClInclude Include="Common\Crypto\bn.h" />
     <ClInclude Include="Common\Crypto\ec.h" />
     <ClInclude Include="Common\Crypto\SHA1.h" />
+    <ClInclude Include="Common\Debug\CodeTrace.h" />
     <ClInclude Include="Common\Debug\MemoryPatches.h" />
     <ClInclude Include="Common\Debug\Threads.h" />
     <ClInclude Include="Common\Debug\Watches.h" />
@@ -156,6 +157,7 @@
     <ClInclude Include="Common\UPnP.h" />
     <ClInclude Include="Common\VariantUtil.h" />
     <ClInclude Include="Common\Version.h" />
+    <ClInclude Include="Common\WindowsRegistry.h" />
     <ClInclude Include="Common\WindowSystemInfo.h" />
     <ClInclude Include="Common\WorkQueueThread.h" />
     <ClInclude Include="Core\ActionReplay.h" />
@@ -213,9 +215,6 @@
     <ClInclude Include="Core\DSP\Interpreter\DSPIntTables.h" />
     <ClInclude Include="Core\DSP\Interpreter\DSPIntUtil.h" />
     <ClInclude Include="Core\DSP\Jit\DSPEmitterBase.h" />
-    <ClInclude Include="Core\DSP\Jit\x64\DSPEmitter.h" />
-    <ClInclude Include="Core\DSP\Jit\x64\DSPJitRegCache.h" />
-    <ClInclude Include="Core\DSP\Jit\x64\DSPJitTables.h" />
     <ClInclude Include="Core\DSP\LabelMap.h" />
     <ClInclude Include="Core\DSPEmulator.h" />
     <ClInclude Include="Core\FifoPlayer\FifoDataFile.h" />
@@ -375,6 +374,7 @@
     <ClInclude Include="Core\IOS\USB\Bluetooth\WiimoteDevice.h" />
     <ClInclude Include="Core\IOS\USB\Bluetooth\WiimoteHIDAttr.h" />
     <ClInclude Include="Core\IOS\USB\Common.h" />
+    <ClInclude Include="Core\IOS\USB\Emulated\Skylander.h" />
     <ClInclude Include="Core\IOS\USB\Host.h" />
     <ClInclude Include="Core\IOS\USB\LibusbDevice.h" />
     <ClInclude Include="Core\IOS\USB\OH0\OH0.h" />
@@ -404,6 +404,7 @@
     <ClInclude Include="Core\PowerPC\CachedInterpreter\InterpreterBlockCache.h" />
     <ClInclude Include="Core\PowerPC\ConditionRegister.h" />
     <ClInclude Include="Core\PowerPC\CPUCoreBase.h" />
+    <ClInclude Include="Core\PowerPC\Expression.h" />
     <ClInclude Include="Core\PowerPC\GDBStub.h" />
     <ClInclude Include="Core\PowerPC\Gekko.h" />
     <ClInclude Include="Core\PowerPC\Interpreter\ExceptionUtils.h" />
@@ -439,7 +440,6 @@
     <ClInclude Include="DiscIO\DiscExtractor.h" />
     <ClInclude Include="DiscIO\DiscScrubber.h" />
     <ClInclude Include="DiscIO\DiscUtils.h" />
-    <ClInclude Include="DiscIO\DriveBlob.h" />
     <ClInclude Include="DiscIO\Enums.h" />
     <ClInclude Include="DiscIO\FileBlob.h" />
     <ClInclude Include="DiscIO\Filesystem.h" />
@@ -487,6 +487,7 @@
     <ClInclude Include="InputCommon\ControllerEmu\StickGate.h" />
     <ClInclude Include="InputCommon\ControllerInterface\ControllerInterface.h" />
     <ClInclude Include="InputCommon\ControllerInterface\CoreDevice.h" />
+    <ClInclude Include="InputCommon\ControllerInterface\InputBackend.h" />
     <ClInclude Include="InputCommon\ControllerInterface\DInput\DInput.h" />
     <ClInclude Include="InputCommon\ControllerInterface\DInput\DInput8.h" />
     <ClInclude Include="InputCommon\ControllerInterface\DInput\DInputJoystick.h" />
@@ -634,7 +635,6 @@
     <ClInclude Include="VideoCommon\DataReader.h" />
     <ClInclude Include="VideoCommon\DriverDetails.h" />
     <ClInclude Include="VideoCommon\Fifo.h" />
-    <ClInclude Include="VideoCommon\FPSCounter.h" />
     <ClInclude Include="VideoCommon\FramebufferManager.h" />
     <ClInclude Include="VideoCommon\FramebufferShaderGen.h" />
     <ClInclude Include="VideoCommon\FrameDump.h" />
@@ -669,6 +669,8 @@
     <ClInclude Include="VideoCommon\OnScreenDisplay.h" />
     <ClInclude Include="VideoCommon\OpcodeDecoding.h" />
     <ClInclude Include="VideoCommon\PerfQueryBase.h" />
+    <ClInclude Include="VideoCommon\PerformanceMetrics.h" />
+    <ClInclude Include="VideoCommon\PerformanceTracker.h" />
     <ClInclude Include="VideoCommon\PixelEngine.h" />
     <ClInclude Include="VideoCommon\PixelShaderGen.h" />
     <ClInclude Include="VideoCommon\PixelShaderManager.h" />
@@ -730,12 +732,8 @@
     <ClCompile Include="Common\Crypto\AES.cpp" />
     <ClCompile Include="Common\Crypto\bn.cpp" />
     <ClCompile Include="Common\Crypto\ec.cpp" />
-    <ClCompile Include="Common\Crypto\SHA1.cpp">
-      <!--Workaround msvc arm64 optimizer bug
-      TODO remove after updating to VS 17.4
-      -->
-      <AdditionalOptions Condition="'$(Platform)'=='ARM64'">/d2ssa-peeps-post-color- %(AdditionalOptions)</AdditionalOptions>
-    </ClCompile>
+    <ClCompile Include="Common\Crypto\SHA1.cpp" />
+    <ClCompile Include="Common\Debug\CodeTrace.cpp" />
     <ClCompile Include="Common\Debug\MemoryPatches.cpp" />
     <ClCompile Include="Common\Debug\Watches.cpp" />
     <ClCompile Include="Common\DynamicLibrary.cpp" />
@@ -781,6 +779,7 @@
     <ClCompile Include="Common\Timer.cpp" />
     <ClCompile Include="Common\TraversalClient.cpp" />
     <ClCompile Include="Common\UPnP.cpp" />
+    <ClCompile Include="Common\WindowsRegistry.cpp" />
     <ClCompile Include="Common\Version.cpp" />
     <ClCompile Include="Core\ActionReplay.cpp" />
     <ClCompile Include="Core\ARDecrypt.cpp" />
@@ -835,17 +834,6 @@
     <ClCompile Include="Core\DSP\Interpreter\DSPIntMultiplier.cpp" />
     <ClCompile Include="Core\DSP\Interpreter\DSPIntTables.cpp" />
     <ClCompile Include="Core\DSP\Jit\DSPEmitterBase.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPEmitter.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitArithmetic.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitBranch.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitCCUtil.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitExtOps.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitLoadStore.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitMisc.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitMultiplier.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitRegCache.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitTables.cpp" />
-    <ClCompile Include="Core\DSP\Jit\x64\DSPJitUtil.cpp" />
     <ClCompile Include="Core\DSP\LabelMap.cpp" />
     <ClCompile Include="Core\DSPEmulator.cpp" />
     <ClCompile Include="Core\FifoPlayer\FifoDataFile.cpp" />
@@ -1000,6 +988,7 @@
     <ClCompile Include="Core\IOS\USB\Bluetooth\WiimoteDevice.cpp" />
     <ClCompile Include="Core\IOS\USB\Bluetooth\WiimoteHIDAttr.cpp" />
     <ClCompile Include="Core\IOS\USB\Common.cpp" />
+    <ClCompile Include="Core\IOS\USB\Emulated\Skylander.cpp" />
     <ClCompile Include="Core\IOS\USB\Host.cpp" />
     <ClCompile Include="Core\IOS\USB\LibusbDevice.cpp" />
     <ClCompile Include="Core\IOS\USB\OH0\OH0.cpp" />
@@ -1026,6 +1015,7 @@
     <ClCompile Include="Core\PowerPC\CachedInterpreter\CachedInterpreter.cpp" />
     <ClCompile Include="Core\PowerPC\CachedInterpreter\InterpreterBlockCache.cpp" />
     <ClCompile Include="Core\PowerPC\ConditionRegister.cpp" />
+    <ClCompile Include="Core\PowerPC\Expression.cpp" />
     <ClCompile Include="Core\PowerPC\GDBStub.cpp" />
     <ClCompile Include="Core\PowerPC\Interpreter\Interpreter_Branch.cpp" />
     <ClCompile Include="Core\PowerPC\Interpreter\Interpreter_FloatingPoint.cpp" />
@@ -1064,7 +1054,6 @@
     <ClCompile Include="DiscIO\DiscExtractor.cpp" />
     <ClCompile Include="DiscIO\DiscScrubber.cpp" />
     <ClCompile Include="DiscIO\DiscUtils.cpp" />
-    <ClCompile Include="DiscIO\DriveBlob.cpp" />
     <ClCompile Include="DiscIO\Enums.cpp" />
     <ClCompile Include="DiscIO\FileBlob.cpp" />
     <ClCompile Include="DiscIO\Filesystem.cpp" />
@@ -1111,6 +1100,7 @@
     <ClCompile Include="InputCommon\ControllerEmu\StickGate.cpp" />
     <ClCompile Include="InputCommon\ControllerInterface\ControllerInterface.cpp" />
     <ClCompile Include="InputCommon\ControllerInterface\CoreDevice.cpp" />
+    <ClCompile Include="InputCommon\ControllerInterface\InputBackend.cpp" />
     <ClCompile Include="InputCommon\ControllerInterface\DInput\DInput.cpp" />
     <ClCompile Include="InputCommon\ControllerInterface\DInput\DInputJoystick.cpp" />
     <ClCompile Include="InputCommon\ControllerInterface\DInput\DInputKeyboardMouse.cpp" />
@@ -1238,7 +1228,6 @@
     <ClCompile Include="VideoCommon\CPMemory.cpp" />
     <ClCompile Include="VideoCommon\DriverDetails.cpp" />
     <ClCompile Include="VideoCommon\Fifo.cpp" />
-    <ClCompile Include="VideoCommon\FPSCounter.cpp" />
     <ClCompile Include="VideoCommon\FramebufferManager.cpp" />
     <ClCompile Include="VideoCommon\FramebufferShaderGen.cpp" />
     <ClCompile Include="VideoCommon\FrameDump.cpp" />
@@ -1266,6 +1255,8 @@
     <ClCompile Include="VideoCommon\OnScreenDisplay.cpp" />
     <ClCompile Include="VideoCommon\OpcodeDecoding.cpp" />
     <ClCompile Include="VideoCommon\PerfQueryBase.cpp" />
+    <ClCompile Include="VideoCommon\PerformanceMetrics.cpp" />
+    <ClCompile Include="VideoCommon\PerformanceTracker.cpp" />
     <ClCompile Include="VideoCommon\PixelEngine.cpp" />
     <ClCompile Include="VideoCommon\PixelShaderGen.cpp" />
     <ClCompile Include="VideoCommon\PixelShaderManager.cpp" />

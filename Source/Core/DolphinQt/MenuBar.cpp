@@ -43,6 +43,7 @@
 #include "Core/PowerPC/PowerPC.h"
 #include "Core/PowerPC/SignatureDB/SignatureDB.h"
 #include "Core/State.h"
+#include "Core/System.h"
 #include "Core/TitleDatabase.h"
 #include "Core/WiiUtils.h"
 
@@ -188,19 +189,6 @@ void MenuBar::OnDebugModeToggled(bool enabled)
   }
 }
 
-void MenuBar::AddDVDBackupMenu(QMenu* file_menu)
-{
-  m_backup_menu = file_menu->addMenu(tr("&Boot from DVD Backup"));
-
-  const std::vector<std::string> drives = Common::GetCDDevices();
-  // Windows Limitation of 24 character drives
-  for (size_t i = 0; i < drives.size() && i < 24; i++)
-  {
-    auto drive = QString::fromStdString(drives[i]);
-    m_backup_menu->addAction(drive, this, [this, drive] { emit BootDVDBackup(drive); });
-  }
-}
-
 void MenuBar::AddFileMenu()
 {
   QMenu* file_menu = addMenu(tr("&File"));
@@ -211,7 +199,10 @@ void MenuBar::AddFileMenu()
   m_change_disc = file_menu->addAction(tr("Change &Disc..."), this, &MenuBar::ChangeDisc);
   m_eject_disc = file_menu->addAction(tr("&Eject Disc"), this, &MenuBar::EjectDisc);
 
-  AddDVDBackupMenu(file_menu);
+  file_menu->addSeparator();
+
+  m_open_user_folder =
+      file_menu->addAction(tr("Open &User Folder"), this, &MenuBar::OpenUserFolder);
 
   file_menu->addSeparator();
 
@@ -229,6 +220,8 @@ void MenuBar::AddToolsMenu()
   tools_menu->addAction(tr("&Cheats Manager"), this, [this] { emit ShowCheatsManager(); });
 
   tools_menu->addAction(tr("FIFO Player"), this, &MenuBar::ShowFIFOPlayer);
+
+  tools_menu->addAction(tr("&Skylanders Portal"), this, &MenuBar::ShowSkylanderPortal);
 
   tools_menu->addSeparator();
 
@@ -558,12 +551,7 @@ void MenuBar::InstallUpdateManually()
   auto* const updater = new Updater(this->parentWidget(), manual_track,
                                     Config::Get(Config::MAIN_AUTOUPDATE_HASH_OVERRIDE));
 
-  if (!updater->CheckForUpdate())
-  {
-    ModalMessageBox::information(
-        this, tr("Update"),
-        tr("You are running the latest version available on this update track."));
-  }
+  updater->CheckForUpdate();
 }
 
 void MenuBar::AddHelpMenu()
@@ -1199,15 +1187,21 @@ void MenuBar::ClearSymbols()
 
 void MenuBar::GenerateSymbolsFromAddress()
 {
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
   PPCAnalyst::FindFunctions(Memory::MEM1_BASE_ADDR,
-                            Memory::MEM1_BASE_ADDR + Memory::GetRamSizeReal(), &g_symbolDB);
+                            Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal(), &g_symbolDB);
   emit NotifySymbolsUpdated();
 }
 
 void MenuBar::GenerateSymbolsFromSignatureDB()
 {
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
   PPCAnalyst::FindFunctions(Memory::MEM1_BASE_ADDR,
-                            Memory::MEM1_BASE_ADDR + Memory::GetRamSizeReal(), &g_symbolDB);
+                            Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal(), &g_symbolDB);
   SignatureDB db(SignatureDB::HandlerType::DSY);
   if (db.Load(File::GetSysDirectory() + TOTALDB))
   {
@@ -1414,6 +1408,9 @@ RSOVector MenuBar::DetectRSOModules(ParallelProgressDialog& progress)
 
 void MenuBar::LoadSymbolMap()
 {
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
   std::string existing_map_file, writable_map_file;
   bool map_exists = CBoot::FindMapFile(&existing_map_file, &writable_map_file);
 
@@ -1421,7 +1418,7 @@ void MenuBar::LoadSymbolMap()
   {
     g_symbolDB.Clear();
     PPCAnalyst::FindFunctions(Memory::MEM1_BASE_ADDR + 0x1300000,
-                              Memory::MEM1_BASE_ADDR + Memory::GetRamSizeReal(), &g_symbolDB);
+                              Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal(), &g_symbolDB);
     SignatureDB db(SignatureDB::HandlerType::DSY);
     if (db.Load(File::GetSysDirectory() + TOTALDB))
       db.Apply(&g_symbolDB);
@@ -1662,8 +1659,11 @@ void MenuBar::SearchInstruction()
   if (!good)
     return;
 
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
   bool found = false;
-  for (u32 addr = Memory::MEM1_BASE_ADDR; addr < Memory::MEM1_BASE_ADDR + Memory::GetRamSizeReal();
+  for (u32 addr = Memory::MEM1_BASE_ADDR; addr < Memory::MEM1_BASE_ADDR + memory.GetRamSizeReal();
        addr += 4)
   {
     const auto ins_name =

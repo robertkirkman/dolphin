@@ -21,7 +21,7 @@
 [submodule "Externals/spirv_cross/SPIRV-Cross"]
 	path = Externals/spirv_cross/SPIRV-Cross
 	url = https://github.com/KhronosGroup/SPIRV-Cross.git
-	branch = master
+	branch = main
 	shallow = true
 [submodule "SDL"]
 	path = Externals/SDL/SDL
@@ -40,3 +40,14 @@
 [submodule "Externals/VulkanMemoryAllocator"]
 	path = Externals/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "Externals/cubeb/cubeb"]
+	path = Externals/cubeb/cubeb
+	url = https://github.com/mozilla/cubeb.git
+	branch = master
+	shallow = true
+[submodule "Externals/implot/implot"]
+	path = Externals/implot/implot
+	url = https://github.com/epezent/implot.git
+[submodule "Externals/gtest"]
+	path = Externals/gtest
+	url = https://github.com/google/googletest.git

@@ -19,6 +19,7 @@
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/Memmap.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 
 namespace ExpansionInterface
 {
@@ -66,8 +67,7 @@ CEXIETHERNET::CEXIETHERNET(BBADeviceType type)
     // Perform sanity check on BBA MAC address, XLink requires the vendor OUI to be Nintendo's and
     // to be one of the two used for the GameCube.
     // Don't actually stop the BBA from initializing though
-    if (!StringBeginsWith(mac_addr_setting, "00:09:bf") &&
-        !StringBeginsWith(mac_addr_setting, "00:17:ab"))
+    if (!mac_addr_setting.starts_with("00:09:bf") && !mac_addr_setting.starts_with("00:17:ab"))
     {
       PanicAlertFmtT(
           "BBA MAC address {0} invalid for XLink Kai. A valid Nintendo GameCube MAC address "
@@ -233,7 +233,9 @@ void CEXIETHERNET::DMAWrite(u32 addr, u32 size)
   if (transfer.region == transfer.MX && transfer.direction == transfer.WRITE &&
       transfer.address == BBA_WRTXFIFOD)
   {
-    DirectFIFOWrite(Memory::GetPointer(addr), size);
+    auto& system = Core::System::GetInstance();
+    auto& memory = system.GetMemory();
+    DirectFIFOWrite(memory.GetPointer(addr), size);
   }
   else
   {
@@ -246,7 +248,9 @@ void CEXIETHERNET::DMAWrite(u32 addr, u32 size)
 void CEXIETHERNET::DMARead(u32 addr, u32 size)
 {
   DEBUG_LOG_FMT(SP1, "DMA read: {:08x} {:x}", addr, size);
-  Memory::CopyToEmu(addr, &mBbaMem[transfer.address], size);
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+  memory.CopyToEmu(addr, &mBbaMem[transfer.address], size);
   transfer.address += size;
 }
 

@@ -18,6 +18,7 @@
 #include "Core/HW/Memmap.h"
 #include "Core/IOS/FS/FileSystem.h"
 #include "Core/PowerPC/MMU.h"
+#include "Core/System.h"
 #include "DiscIO/DirectoryBlob.h"
 #include "DiscIO/RiivolutionParser.h"
 
@@ -63,13 +64,13 @@ FileDataLoaderHostFS::MakeAbsoluteFromRelative(std::string_view external_relativ
     return std::nullopt;
 #endif
 
-  std::string result = StringBeginsWith(external_relative_path, "/") ? m_sd_root : m_patch_root;
+  std::string result = external_relative_path.starts_with('/') ? m_sd_root : m_patch_root;
   std::string_view work = external_relative_path;
 
   // Strip away all leading and trailing path separators.
-  while (StringBeginsWith(work, "/"))
+  while (work.starts_with('/'))
     work.remove_prefix(1);
-  while (StringEndsWith(work, "/"))
+  while (work.ends_with('/'))
     work.remove_suffix(1);
   size_t depth = 0;
   while (true)
@@ -125,7 +126,7 @@ FileDataLoaderHostFS::MakeAbsoluteFromRelative(std::string_view external_relativ
     work = work.substr(separator_position + 1);
 
     // Remove any potential extra path separators.
-    while (StringBeginsWith(work, "/"))
+    while (work.starts_with('/'))
       work = work.substr(1);
   }
   return result;
@@ -424,9 +425,9 @@ static void ApplyFolderPatchToFST(const Patch& patch, const Folder& folder,
         return std::string(b);
       if (b.empty())
         return std::string(a);
-      if (StringEndsWith(a, "/"))
+      if (a.ends_with('/'))
         a.remove_suffix(1);
-      if (StringBeginsWith(b, "/"))
+      if (b.starts_with('/'))
         b.remove_prefix(1);
       return fmt::format("{}/{}", a, b);
     };
@@ -582,6 +583,9 @@ static void ApplyOcarinaMemoryPatch(const Patch& patch, const Memory& memory_pat
 
 void ApplyGeneralMemoryPatches(const std::vector<Patch>& patches)
 {
+  auto& system = Core::System::GetInstance();
+  auto& system_memory = system.GetMemory();
+
   for (const auto& patch : patches)
   {
     for (const auto& memory : patch.m_memory_patches)
@@ -590,7 +594,7 @@ void ApplyGeneralMemoryPatches(const std::vector<Patch>& patches)
         continue;
 
       if (memory.m_search)
-        ApplySearchMemoryPatch(patch, memory, 0x80000000, ::Memory::GetRamSize());
+        ApplySearchMemoryPatch(patch, memory, 0x80000000, system_memory.GetRamSize());
       else
         ApplyMemoryPatch(patch, memory);
     }
